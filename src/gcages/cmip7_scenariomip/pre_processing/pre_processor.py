@@ -356,9 +356,22 @@ def do_pre_processing(  # noqa: PLR0912, PLR0913, PLR0915
     # Can't use these yet
     # TODO: implement support for baskets
     global_workflow_emissions_not_from_gridding_emissions = global_workflow_emissions_not_from_gridding_emissions.loc[  # noqa: E501
-        ~global_workflow_emissions_not_from_gridding_emissions.index.get_level_values(
-            unit_level
-        ).str.contains("equiv")
+        (
+            # baskets, like Kyoto Gases (or F-Gases):
+            ~global_workflow_emissions_not_from_gridding_emissions.index.get_level_values(
+                unit_level
+            ).str.contains("equiv")
+        )
+        & (
+            # Carbon Removal|* may have been renamed to Carbon Removal|CO2|*,
+            # - that's why the variable may still be here (as it is not gridded)
+            # - but we still do not want it in the global workflow (that
+            # ...  would be double-counting) so we drop it here
+            # TODO: drop this earlier already
+            ~global_workflow_emissions_not_from_gridding_emissions.index.get_level_values(
+                variable_level
+            ).str.contains("Carbon Removal")
+        )
     ]
 
     global_workflow_emissions_raw_names = pd.concat(
