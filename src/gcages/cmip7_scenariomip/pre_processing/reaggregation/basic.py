@@ -1107,9 +1107,12 @@ def to_gridding_sectors(
     # BECCS  & Other (non-Land) CDR readdition
     # Get row masks just once
 
+    unit_vals = region_sector_df.index.get_level_values("unit")
     emissions_mask = (
-        region_sector_df.index.get_level_values("table") == "Emissions"
-    ) & (region_sector_df.index.get_level_values("species") == "CO2")
+        (region_sector_df.index.get_level_values("table") == "Emissions")
+        & (region_sector_df.index.get_level_values("species") == "CO2")
+        & (pd.notna(unit_vals))
+    )
     cdr_mask = (
         region_sector_df.index.get_level_values("table") == "Carbon Removal"
     ) & (region_sector_df.index.get_level_values("species") == "CO2")
