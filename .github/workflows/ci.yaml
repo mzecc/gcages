@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: ./.github/actions/setup
         with:
           python-version: ${{ matrix.python-version }}
@@ -91,6 +93,9 @@ jobs:
         # feel free to update.
         shell: bash
     steps:
+      - name: Support longpaths on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
       - name: Check out repository
         uses: actions/checkout@v4
       - uses: ./.github/actions/setup
