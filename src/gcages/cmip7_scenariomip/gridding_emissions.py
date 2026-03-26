@@ -42,7 +42,7 @@ COMPLETE_GRIDDING_SPECIES: tuple[str, ...] = (
 Complete set of species for gridding
 """
 
-COMPLETE_GRIDDING_SECTORS: tuple[str, ...] = (
+COMPLETE_GRIDDING_SECTORS_EXCEPT_CDR: tuple[str, ...] = (
     "Agricultural Waste Burning",
     "Agriculture",
     "Aircraft",
@@ -56,9 +56,22 @@ COMPLETE_GRIDDING_SECTORS: tuple[str, ...] = (
     "Solvents Production and Application",
     "Transportation Sector",
     "Waste",
+    "Other CDR",
 )
 """
-Complete set of sectors for gridding
+Complete set of sectors for gridding excluding CDR sectors
+"""
+
+COMPLETE_GRIDDING_SECTORS_CDR: tuple[str, ...] = (
+    "BECCS",
+    "Enhanced Weathering",
+    "Direct Air Capture",
+    "Ocean",
+    "Biochar",
+    "Soil Carbon Management",
+)
+"""
+Complete set of sectors for gridding CDR sectors
 """
 
 
@@ -117,17 +130,29 @@ def get_complete_gridding_index(  # noqa: PLR0913
         [complete_world_variables, [world_region]], names=[variable_level, region_level]
     )
 
-    model_region_sectors = sorted(
-        set(COMPLETE_GRIDDING_SECTORS) - set(world_gridding_sectors)
+    model_region_sectors_except_cdr = sorted(
+        set(COMPLETE_GRIDDING_SECTORS_EXCEPT_CDR) - set(world_gridding_sectors)
     )
-    complete_model_region_variables = [
+    complete_model_region_variables_except_cdr = [
         level_separator.join([table, species, sectors])
         for species, sectors in itertools.product(
-            COMPLETE_GRIDDING_SPECIES, model_region_sectors
+            COMPLETE_GRIDDING_SPECIES, model_region_sectors_except_cdr
         )
     ]
+
+    complete_model_region_variables_cdr = [
+        level_separator.join([table, "CO2", sectors])
+        for sectors in COMPLETE_GRIDDING_SECTORS_CDR
+    ]
+
     model_region_required = pd.MultiIndex.from_product(
-        [complete_model_region_variables, model_regions],
+        [
+            [
+                *complete_model_region_variables_except_cdr,
+                *complete_model_region_variables_cdr,
+            ],
+            model_regions,
+        ],
         names=[variable_level, region_level],
     )
 
@@ -148,16 +173,34 @@ class SpatialResolutionOption(StrEnum):
 
 CO2_FOSSIL_SECTORS_GRIDDING: tuple[str, ...] = (
     "Aircraft",
+    "BECCS",
     "International Shipping",
     "Energy Sector",
     "Industrial Sector",
+    "Other CDR",
+    "Enhanced Weathering",
+    "Direct Air Capture",
+    "Ocean",
+    "Biochar",
+    "Soil Carbon Management",
     "Residential Commercial Other",
     "Solvents Production and Application",
     "Transportation Sector",
     "Waste",
 )
 """
-Sectors that come from fossil CO2 reservoirs (gridding naming convention)
+Sectors that come from or go to fossil CO2 reservoirs (gridding naming convention)
+
+BECCS is here because the carbon is stored permanently (or assumed to be).
+It is grown then removed from the land pool,
+so is 'net zero' from the land pool's point of view
+(and handling this really well requires running a carbon cycle model
+to determine the possible uptake from the BECCS land-use,
+which isn't how the split between modelling domains works at the moment).
+
+There is the same issue for some non-land CDR e.g. ocean alkalinity stuff.
+Again, a handling sophisticiated enough to capture this properly
+is beyond the scope of the fossil/biosphere split we're making here.
 
 Not a perfect split with [CO2_BIOSPHERE_SECTORS_GRIDDING][(m).],
 but the best we can do.
@@ -283,7 +326,6 @@ def to_global_workflow_emissions(  # noqa: PLR0913
             for df in [gw_total_df_input_like, gw_sector_df_input_like]
         ]
     )
-
     return res
 
 
@@ -350,7 +392,9 @@ def to_global_workflow_emissions_from_stacked(  # noqa: PLR0913
 
     sector_df_full = pd.concat([sector_df, region_sector_df_region_sum], axis="columns")
 
-    co2_locator = sector_df_full.index.get_level_values(species_level) == co2_name
+    co2_locator = (sector_df_full.index.get_level_values(species_level) == co2_name) & (
+        sector_df_full.index.get_level_values("table") == "Emissions"
+    )
 
     non_co2: pd.Series[NP_FLOAT_OR_INT] = sector_df_full[~co2_locator].sum(  # type: ignore # pandas-stubs out of date
         axis="columns"

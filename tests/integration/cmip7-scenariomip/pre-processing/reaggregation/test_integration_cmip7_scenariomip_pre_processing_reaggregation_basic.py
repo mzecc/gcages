@@ -30,7 +30,10 @@ import pandas as pd
 import pytest
 from attrs import define
 from pandas_openscm.grouping import groupby_except
-from pandas_openscm.index_manipulation import update_index_levels_func
+from pandas_openscm.index_manipulation import (
+    update_index_levels_from_other_func,
+    update_index_levels_func,
+)
 from pandas_openscm.indexing import multi_index_lookup, multi_index_match
 
 from gcages.aggregation import aggregate_df_level
@@ -96,23 +99,46 @@ class GriddingSectorComponentsReporting:
     input_species_optional: tuple[str, ...]
 
     def to_complete_variables(self, all_species: tuple[str, ...]) -> tuple[str, ...]:
-        return tuple(
-            f"Emissions|{species}|{sector}"
-            for species in all_species
-            for sector in self.input_sectors
-        )
+        if self.gridding_sector in [
+            "BECCS",
+            "Enhanced Weathering",
+            "Direct Air Capture",
+            "Ocean",
+            "Biochar",
+            "Soil Carbon Management",
+        ]:
+            return tuple(f"Carbon Removal|{sector}" for sector in self.input_sectors)
+        else:
+            return tuple(
+                f"Emissions|{species}|{sector}"
+                for species in all_species
+                for sector in self.input_sectors
+            )
 
     def to_required_variables(self, all_species: tuple[str, ...]) -> tuple[str, ...]:
-        return tuple(
-            f"Emissions|{species}|{sector}"
-            for species in all_species
-            for sector in self.input_sectors
-            if not (
-                # note the OR logic here
-                sector in self.input_sectors_optional
-                or species in self.input_species_optional
+        if self.gridding_sector in [
+            "BECCS",
+            "Enhanced Weathering",
+            "Direct Air Capture",
+            "Ocean",
+            "Biochar",
+            "Soil Carbon Management",
+        ]:
+            return tuple(
+                f"Carbon Removal|{sector}"
+                for sector in self.input_sectors
+                if sector not in self.input_sectors_optional
             )
-        )
+        else:
+            return tuple(
+                f"Emissions|{species}|{sector}"
+                for species in all_species
+                for sector in self.input_sectors
+                if not (
+                    sector in self.input_sectors_optional
+                    or species in self.input_species_optional
+                )
+            )
 
 
 GRIDDING_SECTORS = {
@@ -121,15 +147,8 @@ GRIDDING_SECTORS = {
         GriddingSectorComponentsReporting(
             gridding_sector="Agriculture",
             spatial_resolution="model region",
-            input_sectors=("AFOLU|Agriculture",),
-            input_sectors_optional=(),
-            input_species_optional=(),
-        ),
-        GriddingSectorComponentsReporting(
-            gridding_sector="Agricultural Waste Burning",
-            spatial_resolution="model region",
             input_sectors=(
-                "AFOLU|Agricultural Waste Burning",
+                "AFOLU|Agriculture",
                 "AFOLU|Land|Harvested Wood Products",
                 "AFOLU|Land|Land Use and Land-Use Change",
                 "AFOLU|Land|Other",
@@ -146,7 +165,15 @@ GRIDDING_SECTORS = {
                 "CO",
                 "OC",
                 "Sulfur",
+                "CO2",
             ),
+        ),
+        GriddingSectorComponentsReporting(
+            gridding_sector="Agricultural Waste Burning",
+            spatial_resolution="model region",
+            input_sectors=("AFOLU|Agricultural Waste Burning",),
+            input_sectors_optional=(),
+            input_species_optional=("CO2",),
         ),
         GriddingSectorComponentsReporting(
             gridding_sector="Aircraft",
@@ -187,14 +214,14 @@ GRIDDING_SECTORS = {
             spatial_resolution="model region",
             input_sectors=("AFOLU|Land|Fires|Forest Burning",),
             input_sectors_optional=(),
-            input_species_optional=(),
+            input_species_optional=("CO2",),
         ),
         GriddingSectorComponentsReporting(
             gridding_sector="Grassland Burning",
             spatial_resolution="model region",
             input_sectors=("AFOLU|Land|Fires|Grassland Burning",),
             input_sectors_optional=(),
-            input_species_optional=(),
+            input_species_optional=("CO2",),
         ),
         GriddingSectorComponentsReporting(
             gridding_sector="Industrial Sector",
@@ -204,12 +231,10 @@ GRIDDING_SECTORS = {
                 "Energy|Demand|Other Sector",
                 "Industrial Processes",
                 "Other",
-                "Other Capture and Removal",
             ),
             input_sectors_optional=(
                 "Energy|Demand|Other Sector",
                 "Other",
-                "Other Capture and Removal",
             ),
             input_species_optional=(),
         ),
@@ -248,6 +273,125 @@ GRIDDING_SECTORS = {
             input_sectors_optional=(),
             input_species_optional=(),
         ),
+        GriddingSectorComponentsReporting(
+            gridding_sector="Other CDR",
+            spatial_resolution="model region",
+            input_sectors=("Other Capture and Removal",),
+            input_sectors_optional=("Other Capture and Removal",),
+            input_species_optional=(
+                "BC",
+                "CH4",
+                "CO",
+                "NH3",
+                "N2O",
+                "NOx",
+                "OC",
+                "Sulfur",
+                "VOC",
+            ),
+        ),
+        GriddingSectorComponentsReporting(
+            gridding_sector="BECCS",
+            spatial_resolution="model region",
+            input_sectors=("Geological Storage|Biomass",),
+            input_sectors_optional=("Geological Storage|Biomass",),
+            input_species_optional=(
+                "BC",
+                "CH4",
+                "CO",
+                "NH3",
+                "N2O",
+                "NOx",
+                "OC",
+                "Sulfur",
+                "VOC",
+            ),
+        ),
+        GriddingSectorComponentsReporting(
+            gridding_sector="Enhanced Weathering",
+            spatial_resolution="model region",
+            input_sectors=("Enhanced Weathering",),
+            input_sectors_optional=("Enhanced Weathering",),
+            input_species_optional=(
+                "BC",
+                "CH4",
+                "CO",
+                "NH3",
+                "N2O",
+                "NOx",
+                "OC",
+                "Sulfur",
+                "VOC",
+            ),
+        ),
+        GriddingSectorComponentsReporting(
+            gridding_sector="Direct Air Capture",
+            spatial_resolution="model region",
+            input_sectors=("Geological Storage|Direct Air Capture",),
+            input_sectors_optional=("Geological Storage|Direct Air Capture",),
+            input_species_optional=(
+                "BC",
+                "CH4",
+                "CO",
+                "NH3",
+                "N2O",
+                "NOx",
+                "OC",
+                "Sulfur",
+                "VOC",
+            ),
+        ),
+        GriddingSectorComponentsReporting(
+            gridding_sector="Ocean",
+            spatial_resolution="model region",
+            input_sectors=("Ocean",),
+            input_sectors_optional=("Ocean",),
+            input_species_optional=(
+                "BC",
+                "CH4",
+                "CO",
+                "NH3",
+                "N2O",
+                "NOx",
+                "OC",
+                "Sulfur",
+                "VOC",
+            ),
+        ),
+        GriddingSectorComponentsReporting(
+            gridding_sector="Biochar",
+            spatial_resolution="model region",
+            input_sectors=("Land Use|Biochar",),
+            input_sectors_optional=("Land Use|Biochar",),
+            input_species_optional=(
+                "BC",
+                "CH4",
+                "CO",
+                "NH3",
+                "N2O",
+                "NOx",
+                "OC",
+                "Sulfur",
+                "VOC",
+            ),
+        ),
+        GriddingSectorComponentsReporting(
+            gridding_sector="Soil Carbon Management",
+            spatial_resolution="model region",
+            input_sectors=("Land Use|Soil Carbon Management",),
+            input_sectors_optional=("Land Use|Soil Carbon Management",),
+            input_species_optional=(
+                "BC",
+                "CH4",
+                "CO",
+                "NH3",
+                "N2O",
+                "NOx",
+                "OC",
+                "Sulfur",
+                "VOC",
+            ),
+        ),
     )
 }
 
@@ -263,10 +407,22 @@ def to_index(  # noqa: PLR0913
 ) -> pd.MultiIndex:
     res = None
     for gs in gss:
-        if complete:
-            variables = gs.to_complete_variables(all_species=all_species)
+        if gs.gridding_sector in [
+            "BECCS",
+            "Enhanced Weathering",
+            "Direct Air Capture",
+            "Ocean",
+            "Biochar",
+            "Soil Carbon Management",
+        ]:
+            species_to_use = ["CO2"]
         else:
-            variables = gs.to_required_variables(all_species=all_species)
+            species_to_use = all_species
+
+        if complete:
+            variables = gs.to_complete_variables(all_species=species_to_use)
+        else:
+            variables = gs.to_required_variables(all_species=species_to_use)
 
         if gs.spatial_resolution == "model region":
             regions = model_regions
@@ -300,6 +456,7 @@ COMPLETE_INDEX = to_index(
     model_regions=MODEL_REGIONS,
 )
 
+
 REQUIRED_INDEX = to_index(
     GRIDDING_SECTORS.values(),
     complete=False,
@@ -318,17 +475,35 @@ INTERNAL_CONSISTENCY_DOUBLE_COUNTERS = to_index(
     model_regions=MODEL_REGIONS,
 )
 
+CDR_SECOND_LEVEL_INDEX = pd.MultiIndex.from_product(
+    [
+        [
+            v
+            for v in COMPLETE_INDEX.get_level_values("variable").unique()
+            if v.startswith("Carbon Removal") and v.count("|") <= 1
+        ],
+        MODEL_REGIONS,
+    ],
+    names=["variable", "region"],
+)
+
+
 INTERNAL_CONSISTENCY_INDEX = COMPLETE_INDEX.difference(
     INTERNAL_CONSISTENCY_DOUBLE_COUNTERS
-)
+).difference(CDR_SECOND_LEVEL_INDEX)
 """
 To avoid double counting, you have to be careful
 
 This is why the internal consistency index is its own thing.
+
+In addition, only part of the carbon removal tree is checkable.
 """
 
 
 def guess_unit(v: str) -> str:
+    if v.startswith("Carbon Removal"):
+        return "Gt CO2/yr"
+
     species = v.split("|")[1]
     unit_map = {
         "BC": "Mt BC/yr",
@@ -520,7 +695,7 @@ def test_assert_has_all_required_timeseries(to_remove, to_add, exp):
 
 
 def get_aggregate_df(
-    indf: pd.DataFrame, world_region: str, on_clash_variable: str = "raise"
+    indf: pd.DataFrame, world_region: str, on_clash_variable: str = "overwrite"
 ) -> pd.DataFrame:
     # The way the data is specified, a blind sum over regions is fine.
     df_regional = indf.loc[indf.index.get_level_values("region") != world_region]
@@ -543,12 +718,9 @@ def get_aggregate_df(
 
 """
 The next few tests are of `assert_is_internally_consistent`
-
 The combinatorics of this are difficult
 (you can't test all possible combinations of passing and missing things).
-
 Our strategy is to make sure that:
-
 1. an internally consistent dataset built off required timeseries,
    complete timeseries or things in between passes
 1. modifications to an internally consistent set lead to the expected behaviour
@@ -745,11 +917,9 @@ def test_assert_is_internally_consistent_modifications(
 ):
     """
     Tests of modifications to an internally consistent dataset
-
     The combinatorics of this are difficult
     (you can't test all possible combinations of missing things).
     Our strategy is to make sure that:
-
     1. removing/modifying any level fails (as the internal consistency is broken),
        except those that don't affect internal consistency (e.g. domestic aviation)
     1. removing/modifying multiple levels fails (as the internal consistency is broken)
@@ -831,7 +1001,7 @@ def test_assert_is_internally_consistent_hierarchy_consistent():
         ),
         pytest.param(
             1.0,
-            dict(atol=Q(1.0, "MtCO2 / yr")),
+            dict(atol=Q(1.0, "MtCO2 / yr") if Q is not None else 1.0),
             pytest.raises(InternalConsistencyError),
             id="atol-raises-pint",
             marks=pytest.mark.skipif(Q is None, reason="Missing openscm-units"),
@@ -862,7 +1032,7 @@ def test_assert_is_internally_consistent_hierarchy_consistent():
         ),
         pytest.param(
             0.01,
-            dict(rtol=Q(1e-6, "1")),
+            dict(rtol=Q(1e-6, "1") if Q is not None else 1.0),
             pytest.raises(InternalConsistencyError),
             id="rtol-raises-pint",
             marks=pytest.mark.skipif(Q is None, reason="Missing openscm-units"),
@@ -955,6 +1125,28 @@ def test_to_complete_missing_timeseries(to_remove):
     res = to_complete(df, model_regions=MODEL_REGIONS)
 
     exp_zeros = COMPLETE_DF.loc[to_remove_locator] * 0.0
+    if not df.index.get_level_values("variable").str.startswith("Carbon Removal").any():
+        # The unit is guessed based on CO2 instead so won't match the input exactly
+        # (it can't because there's no way to guess)
+        vu_map = {
+            v: u
+            for v, u in exp_zeros.index.droplevel(
+                exp_zeros.index.names.difference(["variable", "unit"])
+            )
+            .reorder_levels(["variable", "unit"])
+            .drop_duplicates()
+        }
+        exp_zeros = update_index_levels_from_other_func(
+            exp_zeros,
+            {
+                "unit": (
+                    "variable",
+                    lambda x: "Gt C/yr"
+                    if x.startswith("Carbon Removal")
+                    else vu_map[x],
+                )
+            },
+        )
 
     exp = pd.concat([df, exp_zeros.reorder_levels(df.index.names)])
     assert_frame_equal(res.complete, exp)
@@ -1003,6 +1195,28 @@ def test_to_complete_extra_and_missing_optional_timeseries(to_remove, to_add):
     res = to_complete(df, model_regions=MODEL_REGIONS)
 
     exp_zeros = COMPLETE_DF.loc[to_remove_locator] * 0.0
+    if not df.index.get_level_values("variable").str.startswith("Carbon Removal").any():
+        # The unit is guessed based on CO2 instead so won't match the input exactly
+        # (it can't because there's no way to guess)
+        vu_map = {
+            v: u
+            for v, u in exp_zeros.index.droplevel(
+                exp_zeros.index.names.difference(["variable", "unit"])
+            )
+            .reorder_levels(["variable", "unit"])
+            .drop_duplicates()
+        }
+        exp_zeros = update_index_levels_from_other_func(
+            exp_zeros,
+            {
+                "unit": (
+                    "variable",
+                    lambda x: "Gt C/yr"
+                    if x.startswith("Carbon Removal")
+                    else vu_map[x],
+                )
+            },
+        )
 
     exp = pd.concat([df_after_removal, exp_zeros.reorder_levels(df.index.names)])
     assert_frame_equal(res.complete, exp)
@@ -1016,6 +1230,9 @@ def test_to_complete_extra_and_missing_optional_timeseries(to_remove, to_add):
 
 @pytest.fixture
 def complete_to_gridding_res():
+    # Needs to do unit conversion
+    pytest.importorskip("openscm_units")
+
     variables = tuple(
         f"Emissions|{species}|Energy|Demand|Transportation"
         for species in COMPLETE_GRIDDING_SPECIES
@@ -1028,6 +1245,7 @@ def complete_to_gridding_res():
     unaggregated = get_df(COMPLETE_INDEX.difference(transport_index), model=MODEL)
 
     internally_consistent = get_aggregate_df(unaggregated, world_region=WORLD_REGION)
+
     # Add in the |Transportation level too
     transport = internally_consistent.loc[
         (
@@ -1048,9 +1266,9 @@ def complete_to_gridding_res():
         ]
     )
 
-    tcr = to_complete(internally_consistent, model_regions=MODEL_REGIONS)
-    assert tcr.assumed_zero is None
-    input = tcr.complete
+    to_complete_result = to_complete(internally_consistent, model_regions=MODEL_REGIONS)
+    assert to_complete_result.assumed_zero is None
+    input = to_complete_result.complete
 
     res = to_gridding_sectors(input)
 
@@ -1074,7 +1292,21 @@ def test_complete_to_gridding_sectors_output_index(complete_to_gridding_res):
         pytest.param(gs, id=name)
         for name, gs in GRIDDING_SECTORS.items()
         if name
-        not in ("Aircraft", "Domestic aviation headache", "Transportation Sector")
+        not in (
+            "Aircraft",
+            "BECCS",
+            "Domestic aviation headache",
+            "Transportation Sector",
+            "Energy Sector",
+            "Industrial Sector",
+            "Agriculture",
+            "Other CDR",
+            "Enhanced Weathering",
+            "Direct Air Capture",
+            "Ocean",
+            "Biochar",
+            "Soil Carbon Management",
+        )
     ),
 )
 def test_complete_to_gridding_sectors_straightforward_sector(
@@ -1092,6 +1324,20 @@ def test_complete_to_gridding_sectors_straightforward_sector(
         region_locator,
         list(gridding_sector_definition.input_sectors),
     ]
+
+    if gridding_sector_definition.gridding_sector in [
+        "BECCS",
+        "Other CDR",
+        "Enhanced Weathering",
+        "Direct Air Capture",
+        "Ocean",
+        "Biochar",
+        "Soil Carbon Management",
+    ]:
+        tmp = tmp[tmp.index.get_level_values("table") == "Carbon Removal"]
+    else:
+        tmp = tmp[tmp.index.get_level_values("table") == "Emissions"]
+
     tmp[gridding_sector_definition.gridding_sector] = tmp.sum(axis="columns")
     exp = combine_sectors(
         tmp[[gridding_sector_definition.gridding_sector]]
@@ -1105,7 +1351,9 @@ def test_complete_to_gridding_sectors_straightforward_sector(
 def test_complete_to_gridding_sectors_transport_and_aviation(complete_to_gridding_res):
     _, input_stacked, res = complete_to_gridding_res
 
-    region_locator = input_stacked.index.get_level_values("region") != WORLD_REGION
+    region_locator = (
+        input_stacked.index.get_level_values("region") != WORLD_REGION
+    ) & (input_stacked.index.get_level_values("table") != "Carbon Removal")
 
     domestic_aviation_sum = groupby_except(
         input_stacked.loc[region_locator][
@@ -1114,12 +1362,15 @@ def test_complete_to_gridding_sectors_transport_and_aviation(complete_to_griddin
         "region",
     ).sum()
     tmp = input_stacked.loc[~region_locator].copy()
+    tmp = tmp[tmp.index.get_level_values("table") != "Carbon Removal"]
+
     tmp["Aircraft"] = (
         tmp["Energy|Demand|Bunkers|International Aviation"] + domestic_aviation_sum
     )
     exp_aircraft = combine_sectors(
         tmp[["Aircraft"]].unstack().stack("sectors", future_stack=True)
     ).reorder_levels(res.index.names)
+
     assert_frame_equal(multi_index_lookup(res, exp_aircraft.index), exp_aircraft)
 
     tmp = input_stacked.loc[region_locator].copy()
@@ -1130,7 +1381,135 @@ def test_complete_to_gridding_sectors_transport_and_aviation(complete_to_griddin
     exp_transport = combine_sectors(
         tmp[["Transportation Sector"]].unstack().stack("sectors", future_stack=True)
     ).reorder_levels(res.index.names)
+
     assert_frame_equal(multi_index_lookup(res, exp_transport.index), exp_transport)
+
+
+def test_complete_to_gridding_sectors_cdr_and_related(complete_to_gridding_res):
+    pix = pytest.importorskip("pandas_indexing")
+
+    input, _, res = complete_to_gridding_res
+
+    input_regional = input[~pix.isin(region="World")]
+
+    exp_beccs = (
+        -1
+        * 12
+        / 44.0
+        * input_regional.loc[
+            pix.isin(variable="Carbon Removal|Geological Storage|Biomass")
+        ].pix.assign(variable="Emissions|CO2|BECCS", unit="Gt C/yr")
+    )
+
+    assert_frame_equal(multi_index_lookup(res, exp_beccs.index), exp_beccs)
+
+    exp_enwea = (
+        -1
+        * 12
+        / 44.0
+        * input_regional.loc[
+            pix.isin(variable="Carbon Removal|Enhanced Weathering")
+        ].pix.assign(variable="Emissions|CO2|Enhanced Weathering", unit="Gt C/yr")
+    )
+    assert_frame_equal(multi_index_lookup(res, exp_enwea.index), exp_enwea)
+
+    exp_dac = (
+        -1
+        * 12
+        / 44.0
+        * input_regional.loc[
+            pix.isin(variable="Carbon Removal|Geological Storage|Direct Air Capture")
+        ].pix.assign(variable="Emissions|CO2|Direct Air Capture", unit="Gt C/yr")
+    )
+    assert_frame_equal(multi_index_lookup(res, exp_dac.index), exp_dac)
+
+    exp_ocean = (
+        -1
+        * 12
+        / 44.0
+        * input_regional.loc[pix.isin(variable="Carbon Removal|Ocean")].pix.assign(
+            variable="Emissions|CO2|Ocean", unit="Gt C/yr"
+        )
+    )
+    assert_frame_equal(multi_index_lookup(res, exp_ocean.index), exp_ocean)
+
+    exp_biochar = (
+        -1
+        * 12
+        / 44.0
+        * input_regional.loc[
+            pix.isin(variable="Carbon Removal|Land Use|Biochar")
+        ].pix.assign(variable="Emissions|CO2|Biochar", unit="Gt C/yr")
+    )
+    assert_frame_equal(multi_index_lookup(res, exp_biochar.index), exp_biochar)
+
+    exp_scm = (
+        -1
+        * 12
+        / 44.0
+        * input_regional.loc[
+            pix.isin(variable="Carbon Removal|Land Use|Soil Carbon Management")
+        ].pix.assign(variable="Emissions|CO2|Soil Carbon Management", unit="Gt C/yr")
+    )
+    assert_frame_equal(multi_index_lookup(res, exp_scm.index), exp_scm)
+
+    # Add carbon removal onto the relevant sectors
+    # (add because the total for these sectors needs to go up as we are moving removals)
+    carbon_removal_map = {
+        "Carbon Removal|Enhanced Weathering": "Other Capture and Removal",
+        "Carbon Removal|Geological Storage|Biomass": "Energy|Supply",
+        "Carbon Removal|Geological Storage|Direct Air Capture": "Other Capture and Removal",  # noqa: E501
+        "Carbon Removal|Ocean": "Other Capture and Removal",
+    }
+    for cdr_sector, raw_sector in carbon_removal_map.items():
+        input_regional.loc[pix.isin(variable=f"Emissions|CO2|{raw_sector}")] = (
+            input_regional.loc[pix.isin(variable=f"Emissions|CO2|{raw_sector}")].add(
+                pix.projectlevel(
+                    12.0
+                    / 44.0
+                    * input_regional.loc[pix.isin(variable=cdr_sector)].pix.assign(
+                        unit="Gt C/yr"
+                    ),
+                    ["region", "unit", "model", "scenario"],
+                ),
+                axis="rows",
+            )
+        )
+
+    input_regional_stacked = (
+        split_sectors(input_regional.loc[~pix.ismatch(variable="Carbon Removal**")])
+        .stack(future_stack=True)
+        .unstack("sectors")
+    )
+
+    exp_energy_stacked = (
+        input_regional_stacked[["Energy|Supply"]]
+        .sum(axis="columns")
+        .pix.assign(sectors="Energy Sector")
+    )
+    exp_energy = combine_sectors(
+        exp_energy_stacked.unstack("year"),
+        bottom_level="sectors",
+    )
+    assert_frame_equal(multi_index_lookup(res, exp_energy.index), exp_energy)
+
+    exp_industrial_stacked = (
+        input_regional_stacked[
+            [
+                "Energy|Demand|Industry",
+                "Energy|Demand|Other Sector",
+                "Industrial Processes",
+                "Other",
+            ]
+        ]
+        .sum(axis="columns")
+        .pix.assign(sectors="Industrial Sector")
+    )
+    exp_industrial = combine_sectors(
+        exp_industrial_stacked.unstack("year"),
+        bottom_level="sectors",
+    )
+    assert_frame_equal(multi_index_lookup(res, exp_industrial.index), exp_industrial)
 
 
 def test_complete_to_gridding_sectors_totals_preserved(complete_to_gridding_res):
@@ -1142,6 +1521,7 @@ def test_complete_to_gridding_sectors_totals_preserved(complete_to_gridding_res)
         ),
         {"region": "World"},
     ).reorder_levels(internally_consistent.index.names)
+
     exp_totals = multi_index_lookup(internally_consistent, res_totals.index)
 
     assert_frame_equal(res_totals, exp_totals)

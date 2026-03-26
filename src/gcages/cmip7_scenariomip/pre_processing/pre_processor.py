@@ -215,6 +215,7 @@ def do_pre_processing(  # noqa: PLR0912, PLR0913, PLR0915
         reaggregator = guess_reaggregator(indf, region_level=region_level)
 
     indf_reported_times = indf.dropna(how="all", axis="columns")
+
     if run_checks:
         indf_reported_times_nan = indf_reported_times.isnull().any(axis="columns")
         if indf_reported_times_nan.any():
@@ -265,12 +266,16 @@ def do_pre_processing(  # noqa: PLR0912, PLR0913, PLR0915
             world_region=reaggregator.world_region,
         )
         gridded_emisssions_sectoral_regional_sum = grss(gridding_workflow_emissions)
-        in_emissions_totals_to_compare_to = grss(
-            # Make sure we only sum across the levels
-            # that are useful for getting the total
-            multi_index_lookup(
-                indf, reaggregator.get_internal_consistency_checking_index()
-            )
+
+        in_emissions_totals_to_compare_to = multi_index_lookup(
+            grss(
+                # Make sure we only sum across the levels
+                # that are useful for getting the total
+                multi_index_lookup(
+                    indf, reaggregator.get_internal_consistency_checking_index()
+                )
+            ),
+            gridded_emisssions_sectoral_regional_sum.index,  # type: ignore # need to cast first or something
         )
         # No tolerance as this should be exact
         assert_frame_equal(
@@ -328,6 +333,13 @@ def do_pre_processing(  # noqa: PLR0912, PLR0913, PLR0915
             indf_clean_units.index.get_level_values(region_level)
             == reaggregator.world_region
         )
+    ]
+    # Don't report any carbon removal from the input
+    # because it is already covered by the Emissions tree from the gridding timeseries
+    global_workflow_emissions_not_from_gridding_emissions = global_workflow_emissions_not_from_gridding_emissions.loc[  # noqa: E501
+        ~global_workflow_emissions_not_from_gridding_emissions.index.get_level_values(
+            variable_level
+        ).str.startswith("Carbon Removal")
     ]
     # Can't use these yet
     # TODO: implement support for baskets
@@ -586,6 +598,7 @@ class CMIP7ScenarioMIPPreProcessor:
                 max_workers=self.n_processes,
             ),
         )
+
         res_d = defaultdict(list)
         for res_ms in res_g:
             for k, v in asdict(res_ms).items():

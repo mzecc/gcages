@@ -111,11 +111,20 @@ def test_output_vs_start_total_consistency(example_input_output):
     )
 
     assert_frame_equal(
-        gridded_emisssions_sector_regional_sum, input_emissions_sector_region_sum
+        gridded_emisssions_sector_regional_sum,
+        # Only compare in the tree we use for gridded emissions
+        # i.e. ignore the carbon removal sum
+        multi_index_lookup(
+            input_emissions_sector_region_sum,
+            gridded_emisssions_sector_regional_sum.index,
+        ),
     )
 
 
 def test_multiple_scenarios_different_time_axes():
+    # Needs to do unit conversion
+    pytest.importorskip("openscm_units")
+
     model_a = "model_a"
     model_regions_a = [f"{model_a}|{r}" for r in ("China", "Pacific OECD")]
     scenario_a = get_example_input(

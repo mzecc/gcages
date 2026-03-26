@@ -17,29 +17,36 @@
 #
 # Here we demonstrate how to run the workflow
 # that was used in CMIP7's ScenarioMIP.
+# <!--
 # If you want a simpler interface for doing this,
 # please see the
-# [climate-assessment](https://github.com/iiasa/climate-assessment) package,
-# which is a [facade](https://refactoring.guru/design-patterns/facade)
+# [climate-processor](https://github.com/iiasa/climate-processor) package,
+# which provides a [facade](https://refactoring.guru/design-patterns/facade)
 # around gcages.
+# -->
 #
 # Note: this is not yet complete, we will add further steps in future.
 
 # %% [markdown]
 # ## Imports
 
-# %%
+# %% editable=true slideshow={"slide_type": ""}
 from functools import partial
 from pathlib import Path
 
 import openscm_units
+import pandas_indexing as pix
 import pandas_openscm
 import pint
 import seaborn as sns
 from pandas_openscm.io import load_timeseries_csv
 
 import gcages.cmip7_scenariomip.pre_processing.reaggregation.basic
-from gcages.cmip7_scenariomip import CMIP7ScenarioMIPPreProcessor
+from gcages.cmip7_scenariomip.harmonisation import (
+    create_cmip7_scenariomip_global_harmoniser,
+)
+from gcages.cmip7_scenariomip.infilling import CMIP7ScenarioMIPInfiller
+from gcages.cmip7_scenariomip.pre_processing import CMIP7ScenarioMIPPreProcessor
 from gcages.index_manipulation import split_sectors
 
 # %%
@@ -83,7 +90,7 @@ pandas_openscm.register_pandas_accessor()
 
 # %% editable=true slideshow={"slide_type": ""}
 EXAMPLE_INPUT_FILE = Path(
-    "tests/regression/cmip7-scenariomip/test-data/salted-202504-scenariomip-input.csv"
+    "tests/regression/cmip7-scenariomip/test-data/salted-202507-scenariomip-input.csv"
 )
 
 # %% editable=true slideshow={"slide_type": ""} tags=["remove_input"]
@@ -98,10 +105,9 @@ if not EXAMPLE_INPUT_FILE.exists():
 start = load_timeseries_csv(
     EXAMPLE_INPUT_FILE,
     index_columns=["model", "scenario", "region", "variable", "unit"],
-    out_column_type=int,
+    out_columns_type=int,
+    out_columns_name="year",
 )
-start.columns.name = "year"
-start
 
 # %% editable=true slideshow={"slide_type": ""}
 relplot_in_emms = partial(
@@ -113,21 +119,29 @@ relplot_in_emms = partial(
     x="year",
     y="value",
     col="variable",
-    col_wrap=2,
+    col_wrap=3,
 )
 
 data = start.openscm.to_long_data(time_col_name="year")
 data = data[
     data["variable"].isin(
-        ["Emissions|CO2", "Emissions|CH4", "Emissions|Sulfur", "Emissions|BC"]
+        [
+            "Emissions|CO2",
+            "Emissions|CH4",
+            "Emissions|Sulfur",
+            "Emissions|BC",
+            "Carbon Removal|Geological Storage|Biomass",
+            "Carbon Removal|Geological Storage|Direct Air Capture",
+            "Carbon Removal|Enhanced Weathering",
+        ]
     )
     & (data["region"].isin(["World"]) | data["region"].str.startswith("model_1"))
 ]
 
 fg = sns.relplot(
     data=data,
-    hue="scenario",
-    style="region",
+    hue="region",
+    style="scenario",
     kind="line",
     linewidth=2.0,
     alpha=0.7,
@@ -189,6 +203,7 @@ reaggregator = (
 pre_processor = CMIP7ScenarioMIPPreProcessor(
     reaggregator=reaggregator,
     n_processes=None,  # run serially
+    run_checks=True,
 )
 
 # %% editable=true slideshow={"slide_type": ""}
@@ -204,8 +219,12 @@ pre_processor_guess_reaggregator = CMIP7ScenarioMIPPreProcessor(
     # Don't specifiy the re-aggregator, let gcages guess
     # reaggregator=reaggregator,
     n_processes=None,  # run serially
+    run_checks=True,
 )
-# The guessing is not so intelligent, so we need to give it a hand
+
+# The guessing is not so intelligent
+# (it can't figure out which regions are model native and which aren't by itself),
+# so we need to give it a hand
 # by stripping out everything except 'World' data
 # and model-region data
 # (removing all other regional aggregations).
@@ -226,7 +245,7 @@ _ = pre_processor_guess_reaggregator(start_guessable)
 #
 # The first bit of information is data which can be used with the global workflow.
 
-# %% editable=true slideshow={"slide_type": ""}
+# %%
 fg = sns.relplot(
     data=res_pre_processed.global_workflow_emissions.openscm.to_long_data(
         time_col_name="year"
@@ -255,14 +274,14 @@ for ax in fg.axes.flatten():
     else:
         ax.set_ylim(ymin=0.0)
 
-# %% [markdown] editable=true slideshow={"slide_type": ""}
+# %% [markdown]
 # ##### Gridding workflow emissions
 #
 # The second bit of information is data which can be used with the gridding workflow.
 # This contains data at the region-sector level
 # for a specific set of sectors.
 
-# %% editable=true slideshow={"slide_type": ""}
+# %%
 data = split_sectors(
     res_pre_processed.gridding_workflow_emissions
 ).openscm.to_long_data(time_col_name="year")
@@ -272,10 +291,10 @@ data = data[data["species"] == species_to_plot]
 
 fg = sns.relplot(
     data=data,
-    hue="scenario",
-    hue_order=sorted(data["scenario"].unique()),
-    style="sectors",
-    style_order=sorted(data["sectors"].unique()),
+    style="scenario",
+    style_order=sorted(data["scenario"].unique()),
+    hue="sectors",
+    hue_order=sorted(data["sectors"].unique()),
     col="region",
     col_order=sorted(data["region"].unique()),
     kind="line",
@@ -294,14 +313,11 @@ for ax in fg.axes.flatten():
 
 fg.fig.suptitle(species_to_plot, y=1.02)
 
-# %% [markdown] editable=true slideshow={"slide_type": ""}
+# %% [markdown]
 # As part of this reporting,
 # we also show which timeseries were assumed to be zero during the processing.
 # (Lots of assumptions are not an issue,
 # we simply include this for clarity and transparency.)
-
-# %%
-res_pre_processed.assumed_zero_emissions
 
 # %% [markdown] editable=true slideshow={"slide_type": ""}
 # ## Harmonisation
@@ -312,20 +328,92 @@ res_pre_processed.assumed_zero_emissions
 # and the level used for gridding.
 #
 # Historical emissions aligned with the rest of the CMIP7 exercise are used for this.
-# These are processed in this repository:
+# These were processed in this repository:
 # https://github.com/iiasa/emissions_harmonization_historical
-# and are archived at [TODO Zenodo upload and link].
+# and are archived at https://zenodo.org/records/17845154.
 #
 # Under the hood, the harmonisation uses the
 # [aneris](https://github.com/iiasa/aneris) package.
 
-# %% [markdown]
+# %% [markdown] editable=true slideshow={"slide_type": ""}
 # ### Global
 
-# %%
-# TBD
+# %% editable=true slideshow={"slide_type": ""}
+CMIP7_SCENARIOMIP_GLOBAL_HISTORICAL_EMISSIONS_FILE = Path(
+    "tests/regression/cmip7-scenariomip/cmip7-scenariomip-workflow-inputs/history_cmip7_scenariomip.csv"
+)
+ANERIS_GLOBAL_OVERRIDES_FILE = Path(
+    "tests/regression/cmip7-scenariomip/cmip7-scenariomip-workflow-inputs/aneris-overrides-global.csv"
+)
+
+# %% editable=true slideshow={"slide_type": ""} tags=["remove_input"]
+# Some trickery to make sure we pick up files in the right path,
+# even when building the docs :)
+if not CMIP7_SCENARIOMIP_GLOBAL_HISTORICAL_EMISSIONS_FILE.exists():
+    CMIP7_SCENARIOMIP_GLOBAL_HISTORICAL_EMISSIONS_FILE = (
+        Path("../..") / CMIP7_SCENARIOMIP_GLOBAL_HISTORICAL_EMISSIONS_FILE
+    )
+    if not CMIP7_SCENARIOMIP_GLOBAL_HISTORICAL_EMISSIONS_FILE.exists():
+        raise AssertionError
+
+if not ANERIS_GLOBAL_OVERRIDES_FILE.exists():
+    ANERIS_GLOBAL_OVERRIDES_FILE = Path("../..") / ANERIS_GLOBAL_OVERRIDES_FILE
+    if not ANERIS_GLOBAL_OVERRIDES_FILE.exists():
+        raise AssertionError
+
+# %% editable=true slideshow={"slide_type": ""}
+harmoniser_global = create_cmip7_scenariomip_global_harmoniser(
+    cmip7_scenariomip_global_historical_emissions_file=CMIP7_SCENARIOMIP_GLOBAL_HISTORICAL_EMISSIONS_FILE,
+    aneris_global_overrides_file=ANERIS_GLOBAL_OVERRIDES_FILE,
+    n_processes=None,  # run serially for this demo
+)
+
+# %% editable=true slideshow={"slide_type": ""}
+harmonised_global = harmoniser_global(res_pre_processed.global_workflow_emissions)
+harmonised_global
 
 # %% [markdown]
+# You can see the modification to the pathways as a result of
+# the harmonisation in the plot below.
+
+# %%
+pdf = (
+    pix.concat(
+        [
+            res_pre_processed.global_workflow_emissions.pix.assign(
+                stage="pre_processed"
+            ),
+            harmonised_global.pix.assign(stage="harmonised"),
+            harmoniser_global.historical_emissions.pix.assign(
+                stage="history", scenario="history", model="history"
+            ).loc[
+                pix.isin(
+                    variable=res_pre_processed.global_workflow_emissions.pix.unique(
+                        "variable"
+                    )
+                )
+            ],
+        ]
+    )
+    .melt(ignore_index=False, var_name="year")
+    .reset_index()
+)
+
+fg = relplot_in_emms(
+    data=pdf,
+    hue="scenario",
+    style="stage",
+    dashes={
+        "history": (1, 1),
+        "pre_processed": (3, 3),
+        "harmonised": "",
+    },
+)
+
+fg.axes.flatten()[0].axhline(0.0, linestyle="--", color="gray")
+fg.axes.flatten()[1].set_ylim(ymin=0.0)
+
+# %% [markdown] editable=true slideshow={"slide_type": ""}
 # ### Region-sector (i.e. gridding level)
 
 # %%
@@ -384,19 +472,37 @@ res_pre_processed.assumed_zero_emissions
 # [silicone](https://github.com/GranthamImperial/silicone) package.
 
 # %%
-# TBD - download infiller db
+BASE_DIR = Path("tests/regression/cmip7-scenariomip/cmip7-scenariomip-workflow-inputs")
+CMIP7_SCENARIOMIP_INFILLING_FILE = BASE_DIR / "infilling_db_cmip7_scenariomip.csv"
+GHG_INVERSION_FILE = BASE_DIR / "cmip7_ghg_inversions.csv"
+
+# %% editable=true slideshow={"slide_type": ""} tags=["remove_input"]
+if not CMIP7_SCENARIOMIP_INFILLING_FILE.exists():
+    CMIP7_SCENARIOMIP_INFILLING_FILE = Path("../..") / CMIP7_SCENARIOMIP_INFILLING_FILE
+    if not CMIP7_SCENARIOMIP_INFILLING_FILE.exists():
+        raise AssertionError
+
+if not GHG_INVERSION_FILE.exists():
+    GHG_INVERSION_FILE = Path("../..") / GHG_INVERSION_FILE
+    if not GHG_INVERSION_FILE.exists():
+        raise AssertionError
 
 # %% [markdown]
 # With the infilling databases, we can initialise our infiller.
 
 # %%
-# TBD
+infiller = CMIP7ScenarioMIPInfiller.from_cmip7_scenariomip_config(
+    cmip7_scenariomip_infilling_leader_emissions_file=CMIP7_SCENARIOMIP_INFILLING_FILE,
+    cmip7_ghg_inversions_file=GHG_INVERSION_FILE,
+    cmip7_scenariomip_global_historical_emissions_file=CMIP7_SCENARIOMIP_GLOBAL_HISTORICAL_EMISSIONS_FILE,
+)
 
 # %% [markdown]
 # And infill
 
 # %%
-# TBD
+infilled = infiller(harmonised_global)
+infilled
 
 # %% [markdown]
 # You can see infilled pathways compared to raw pathways in the below.
@@ -406,32 +512,38 @@ res_pre_processed.assumed_zero_emissions
 # see [Lamboll et al., 2020](https://doi.org/10.5194/gmd-13-5259-2020).
 
 # %%
-# pdf = (
-#     pix.concat(
-#         [
-#             pre_processed.pix.assign(stage="pre_processed"),
-#             harmonised.pix.assign(stage="harmonised"),
-#             infilled.pix.assign(stage="infilled"),
-#         ]
-#     )
-#     .loc[pix.ismatch(variable=["**CO2|Fossil", "**CH4", "**N2O", "**SOx"])]
-#     .melt(ignore_index=False, var_name="year")
-#     .reset_index()
-# )
+pdf = (
+    pix.concat(
+        [
+            res_pre_processed.global_workflow_emissions.loc[:, 2023:].pix.assign(
+                stage="pre_processed"
+            ),
+            harmonised_global.pix.assign(stage="harmonised"),
+            infilled.pix.assign(stage="infilled"),
+        ]
+    )
+    .loc[
+        pix.ismatch(
+            variable=["**CO2|Energy and Industrial Processes", "**CH4", "**N2O", "**CO"]
+        )
+    ]
+    .melt(ignore_index=False, var_name="year")
+    .reset_index()
+)
 
-# fg = relplot_in_emms(
-#     data=pdf,
-#     hue="scenario",
-#     style="stage",
-#     dashes={
-#         "pre_processed": (3, 3),
-#         "harmonised": "",
-#         "infilled": (1, 1),
-#     },
-# )
+fg = relplot_in_emms(
+    data=pdf,
+    hue="scenario",
+    style="stage",
+    dashes={
+        "pre_processed": (3, 3),
+        "harmonised": "",
+        "infilled": (1, 1),
+    },
+)
 
-# fg.axes.flatten()[0].axhline(0.0, linestyle="--", color="gray")
-# fg.axes.flatten()[1].set_ylim(ymin=0.0)
+fg.axes.flatten()[0].axhline(0.0, linestyle="--", color="gray")
+fg.axes.flatten()[1].set_ylim(ymin=0.0)
 
 # %% [markdown]
 # ## SCM Running
@@ -555,7 +667,7 @@ res_pre_processed.assumed_zero_emissions
 # %% [markdown]
 # Assessed surface temperatures.
 
-# %%
+# %% editable=true slideshow={"slide_type": ""}
 # post_processed_results.timeseries_quantile.loc[:, 2000:].openscm.plot_plume(
 #     style_var="variable",
 #     quantiles_plumes=(

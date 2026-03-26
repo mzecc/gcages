@@ -4,15 +4,63 @@ on:
   # pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   tests:
     strategy:
       fail-fast: false
       matrix:
-        os: [ "ubuntu-latest" ]
+        # Not running on windows, see https://github.com/openscm/gcages/issues/36
+        # os: [ "ubuntu-latest", "macos-latest", "windows-latest" ]
+        os: [ "ubuntu-latest", "macos-latest" ]
         # Just test on a sensible version
-        python-version: [ "3.12" ]
+        # Use 3.11 while cicero-scm uses distutils in openscm-runner,
+        # see https://github.com/openscm/openscm-runner/blob/261bd177b86a708b0080eed245b6511ebb0051bb/src/openscm_runner/adapters/ciceroscm_adapter/ciceroscm_wrapper.py#L10
+        python-version: [ "3.11" ]
+    runs-on: "${{ matrix.os }}"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          python-version: ${{ matrix.python-version }}
+          uv-dependency-install-flags: "--all-extras --group tests"
+      - name: Set DYLD path
+        if: matrix.os == 'macos-latest'
+        run: |
+          # # Useful if the path appears to have changed
+          # find / -name 'libgfortran.5.dylib' 2>/dev/null
+          find /opt/homebrew -name libgfortran.5.dylib 2>/dev/null | head -1
+          echo "DYLD_LIBRARY_PATH=$(dirname $(find /opt/homebrew -name libgfortran.5.dylib 2>/dev/null | head -1))" >> $GITHUB_ENV
+      - name: Try to run MAGICC
+        if: matrix.os == 'windows-latest'
+        run: |
+          # This is the thing I can't figure out, even just getting the version to appear doesn't work
+          # x-ref https://github.com/openscm/gcages/issues/36
+          D:\a\gcages\gcages\tests\regression\ar6\ar6-workflow-inputs\magicc-v7.5.3\bin\magicc.exe --version
+      - name: Run tests that are otherwise skipped (mostly regression tests for specific set ups)
+        run: |
+          uv run pytest -r a -v -s tests -m "skip_ci_default"
+
+  tests-resolution-strategies:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Only test on ubuntu here for now.
+        # We could consider doing this on different platforms too,
+        # although that probably belongs better with the PyPI tests.
+        os: [ "ubuntu-latest" ]
+        # Tests with lowest direct resolution.
+        # We don't do lowest because that is essentially testing
+        # whether downstream dependencies
+        # have set their minimum support dependencies correctly,
+        # which isn't our problem to solve.
+        resolution-strategy: [ "lowest-direct" ]
+        # Only test against the oldest supported python version
+        # because python is itself a direct dependency
+        # (so we're testing against the lowest direct python too).
+        python-version: [ "3.9" ]
     runs-on: "${{ matrix.os }}"
     defaults:
       run:
@@ -24,10 +72,20 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
+      - name: Setup uv
+        id: setup-uv
+        uses: astral-sh/setup-uv@v4
         with:
+          version: "0.5.21"
           python-version: ${{ matrix.python-version }}
-          uv-dependency-install-flags: "--all-extras --group tests"
+      - name: Create venv
+        run: |
+          uv venv --seed
+      - name: Install dependencies
+        run: |
+          uv pip install --requirements requirements-only-tests-locked.txt
+          uv pip compile --python ${{ matrix.python-version }} --resolution ${{ matrix.resolution-strategy }} --all-extras pyproject.toml -o requirements-tmp.txt
+          uv pip install --requirements requirements-tmp.txt .
       - name: Run tests
         run: |
-          uv run pytest -r a -v -s tests -m "skip_ci_default"
+          MAGICC_EXECUTABLE_7="tests/regression/ar6/ar6-workflow-inputs/magicc-v7.5.3/bin/magicc" uv run --no-sync pytest -r a -v -s tests -m "skip_ci_default"

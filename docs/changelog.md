@@ -21,6 +21,122 @@ from the examples given in that link.
 
 <!-- towncrier release notes start -->
 
+## gcages v0.14.0 (2026-02-05)
+
+### 🐛 Bug Fixes
+
+- Fixed Biochar and Soil Carbon Management accounting in the CMIP7 ScenarioMIP pre-processing. Soil carbon removal is now subtracted from `AFOLU|Land|Land Use and Land-Use Change` while biochar from `AFOLU|Land|Other. ([#42](https://github.com/openscm/gcages/pull/42))
+
+### 🔧 Trivial/Internal Changes
+
+- [#41](https://github.com/openscm/gcages/pull/41)
+
+
+## gcages v0.13.0 (2025-12-02)
+
+### ⚠️ Breaking Changes
+
+- # Additional CDR split
+
+  Improved CDR granularity adding the `Biochar` and `Soil Carbon Management` new componentes from the Carbon Removal tree. ([#40](https://github.com/openscm/gcages/pull/40))
+
+
+## gcages v0.12.0 (2025-10-10)
+
+### ⚠️ Breaking Changes
+
+- Split out the Carbon Removal variable tree in a way that better facilitates downstream spatial downscaling.
+  This means that we no longer split out `Carbon Removal|Geological Storage|Other Sources` and `Carbon Removal|Geological Storage|Synthetic Fuels`, and have created four new gridding sector components:
+
+  - `Other CDR` (based on the emissions tree)
+  - `Enhanced Weathering`, `Direct Air Capture`, `Ocean` (based on the carbon removal tree)
+
+  ([#39](https://github.com/openscm/gcages/pull/39))
+
+
+## gcages v0.11.0 (2025-07-23)
+
+### ⚠️ Breaking Changes
+
+- Updated minimum supported version of scmdata to v0.18.0. As a result, we could also drop the pin of xarray (as scmdata v0.18.0 fixes xarray compatibility issues, see https://github.com/openscm/scmdata/blob/main/docs/source/changelog.md). ([#38](https://github.com/openscm/gcages/pull/38))
+
+### 🔧 Trivial/Internal Changes
+
+- [#38](https://github.com/openscm/gcages/pull/38)
+
+
+## gcages v0.10.1 (2025-07-17)
+
+### 🐛 Bug Fixes
+
+- Added explicit requirement on importlib-resources for running the AR6 setup as this seems to be needed to make things work on MacOS with Python 3.10 and 3.11 ([#37](https://github.com/openscm/gcages/pull/37))
+
+
+## gcages v0.10.0 (2025-07-16)
+
+### ⚠️ Breaking Changes
+
+- - Renamed the extra "cmip7_scenariomip" to "cmip7scenariomip"
+  - Stopped packaging the tests as part of releases (this significantly reduces the size of the distributions)
+
+  ([#35](https://github.com/openscm/gcages/pull/35))
+
+### 🐛 Bug Fixes
+
+- - Fixed the dependencies required for running the AR6 setup
+  - Made it possible to run the AR6 setup on windows
+
+  ([#35](https://github.com/openscm/gcages/pull/35))
+
+### 🔧 Trivial/Internal Changes
+
+- [#35](https://github.com/openscm/gcages/pull/35)
+
+
+## gcages v0.9.0 (2025-07-16)
+
+### ⚠️ Breaking Changes
+
+- - Changed CMIP7 ScenarioMIP pre-processing. Carbon removal variables are now pre-processed into the Emissions tree, rather than being kept separate as part of the Carbon Removal tree. This greatly simplifies downstream use as all variables are in one tree.
+  - Updated to requiring pandas-openscm>=0.5.1
+
+  ([#30](https://github.com/openscm/gcages/pull/30))
+- Updated minimum numpy version to 1.26.0, the earliest that is not in end-of-life. Fixed the numpy pin for Python 3.13 to >=2.1.0, the first numpy version which supported Python 3.13. ([#34](https://github.com/openscm/gcages/pull/34))
+
+### 🎉 Improvements
+
+- Added unit conversion support to [gcages.harmonisation.common.assert_harmonised][] ([#33](https://github.com/openscm/gcages/pull/33))
+
+### 🔧 Trivial/Internal Changes
+
+- [#30](https://github.com/openscm/gcages/pull/30), [#31](https://github.com/openscm/gcages/pull/31), [#32](https://github.com/openscm/gcages/pull/32), [#34](https://github.com/openscm/gcages/pull/34)
+
+
+## gcages v0.8.0 (2025-07-12)
+
+### ⚠️ Breaking Changes
+
+- Reverted the addition of a CO2 AFOLU gridding sector in CMIP7 ScenarioMIP pre-processing. ([#29](https://github.com/openscm/gcages/pull/29))
+
+
+## gcages v0.7.0 (2025-07-11)
+
+### ⚠️ Breaking Changes
+
+- Managed the removal of subsectors for `Emissions|CO2|AFOLU` tree ([#23](https://github.com/openscm/gcages/pull/23))
+- Introduced the handling of the `Carbon Removal` tree ([#25](https://github.com/openscm/gcages/pull/25))
+
+### 🐛 Bug Fixes
+
+- Moved in `Agriculture` input sectors previously accounted in `Agriculture Waste Burning` ([#18](https://github.com/openscm/gcages/pull/18))
+
+
+## gcages v0.6.1 (2025-07-10)
+
+This release included the changes for the v0.7.0 release,
+but was released with the wrong version number.
+
+
 ## gcages v0.6.0 (2025-05-04)
 
 ### ⚠️ Breaking Changes

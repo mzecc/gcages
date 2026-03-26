@@ -54,11 +54,17 @@ COMPLETE_GRIDDING_SECTORS_MODEL_REGION: tuple[str, ...] = (
     "Forest Burning",
     "Grassland Burning",
     "Industrial Sector",
-    "International Shipping",
     "Peat Burning",
     "Residential Commercial Other",
     "Solvents Production and Application",
     "Waste",
+    "BECCS",
+    "Other CDR",
+    "Enhanced Weathering",
+    "Direct Air Capture",
+    "Ocean",
+    "Biochar",
+    "Soil Carbon Management",
 )
 
 # For most of the tests, use the same world and model regions.
@@ -154,6 +160,13 @@ def gridding_emissions():
                 "Solvents Production and Application",
                 "Transportation Sector",
                 "Waste",
+                "BECCS",
+                "Other CDR",
+                "Enhanced Weathering",
+                "Direct Air Capture",
+                "Ocean",
+                "Biochar",
+                "Soil Carbon Management",
             ),
             None,
             (
@@ -175,6 +188,13 @@ def gridding_emissions():
                 "Solvents Production and Application",
                 "Transportation Sector",
                 "Waste",
+                "BECCS",
+                "Other CDR",
+                "Enhanced Weathering",
+                "Direct Air Capture",
+                "Ocean",
+                "Biochar",
+                "Soil Carbon Management",
                 "Agriculture",
             ),
             (
@@ -186,6 +206,13 @@ def gridding_emissions():
                 "Solvents Production and Application",
                 "Transportation Sector",
                 "Waste",
+                "BECCS",
+                "Other CDR",
+                "Enhanced Weathering",
+                "Direct Air Capture",
+                "Ocean",
+                "Biochar",
+                "Soil Carbon Management",
                 "Agriculture",
             ),
             (
@@ -278,6 +305,13 @@ def test_to_global_workflow_emissions_missing_sector_error(gridding_emissions):
         "International Shipping",
         "Energy Sector",
         "Industrial Sector",
+        "BECCS",
+        "Other CDR",
+        "Enhanced Weathering",
+        "Direct Air Capture",
+        "Ocean",
+        "Biochar",
+        "Soil Carbon Management",
         "Residential Commercial Other",
         # "Solvents Production and Application",
         "Transportation Sector",
@@ -287,12 +321,16 @@ def test_to_global_workflow_emissions_missing_sector_error(gridding_emissions):
     co2_biosphere_sectors = (
         "Agriculture",
         "Agricultural Waste Burning",
-        # "Forest Burning",
+        "Forest Burning",
         "Grassland Burning",
         "Peat Burning",
     )
 
-    not_used_cols = sorted(["Solvents Production and Application", "Forest Burning"])
+    not_used_cols = sorted(
+        [
+            "Solvents Production and Application",
+        ]
+    )
     error_msg = re.escape(
         "\n".join(
             [
