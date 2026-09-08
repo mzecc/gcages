@@ -9,6 +9,7 @@ to help clarify this, but have not done so yet.
 from __future__ import annotations
 
 import sys
+import warnings
 from functools import partial
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
@@ -40,16 +41,22 @@ class SupportedNamingConventions(StrEnum):
     Somehow this ended up being different to all the other conventions.
     """
 
+    AR6_WG3 = "ar6_wg3"
+    """
+    The naming convention used in the IPCC AR6 WG3 scenario database
+
+    See https://data.ene.iiasa.ac.at/ar6.
+
+    This is not the Integrated Assessment Modelling Consortium (IAMC) naming convention
+    """
+
     IAMC = "iamc"
     """
-    Integrated Assessment Modelling Consortium (IAMC) naming convention
+    Deprecated alias for [`AR6_WG3`][(c).]
 
-    Not a perfect definition so the implementation here is a bit of a guess
-    based on experience.
-    https://github.com/IAMconsortium/common-definitions
-    is a better source of truth, but it also moves more quickly,
-    is not used universally and covers many more variables
-    than we care about within the gcages context.
+    This name was misleading: the mapping is specific to AR6 WG3
+    and is not the current IAMC naming convention.
+    Using it warns and will stop working in a future version of gcages.
     """
 
     CMIP7_SCENARIOMIP = "cmip7_scenariomip"
@@ -82,6 +89,26 @@ class SupportedNamingConventions(StrEnum):
 
     See rcmip.org and https://doi.org/10.5194/egusphere-2025-5775
     """
+
+
+def _convention_helper(
+    convention: SupportedNamingConventions,
+) -> SupportedNamingConventions:
+    """
+    Resolve a naming convention, replacing deprecated ones with a warning
+    """
+    if convention == SupportedNamingConventions.IAMC:
+        warnings.warn(
+            "The 'IAMC' naming convention is deprecated "
+            "and will be removed in a future version of gcages. "
+            "Use 'AR6_WG3' instead.",
+            FutureWarning,
+            stacklevel=3,
+        )
+
+        return SupportedNamingConventions.AR6_WG3
+
+    return convention
 
 
 def convert_variable_name(
@@ -117,8 +144,8 @@ def convert_variable_name(
     UnrecognisedValueError
         `variable_in` is not a recognised value in `from_convention`
     """
-    from_key = str(from_convention)
-    to_key = str(to_convention)
+    from_key = str(_convention_helper(from_convention))
+    to_key = str(_convention_helper(to_convention))
 
     res_l = database.loc[database[from_key] == variable_in, to_key].tolist()
 
@@ -177,8 +204,8 @@ def rename_variables(
         {
             index_level: partial(
                 convert_variable_name,
-                from_convention=from_convention,
-                to_convention=to_convention,
+                from_convention=_convention_helper(from_convention),
+                to_convention=_convention_helper(to_convention),
             )
         },
         copy=copy,

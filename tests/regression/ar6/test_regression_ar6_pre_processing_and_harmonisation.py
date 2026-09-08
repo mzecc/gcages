@@ -56,7 +56,7 @@ def add_ar6_prefix_and_convert_to_iamc(indf: pd.DataFrame) -> pd.DataFrame:
                 + convert_variable_name(
                     x,
                     from_convention=SupportedNamingConventions.GCAGES,
-                    to_convention=SupportedNamingConventions.IAMC,
+                    to_convention=SupportedNamingConventions.AR6_WG3,
                 )
             )
         },

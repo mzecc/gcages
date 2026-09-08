@@ -63,7 +63,7 @@ def strip_off_ar6_infilled_prefix_and_convert_to_gcages_and_fix_units(
         {
             "variable": lambda x: convert_variable_name(
                 x.replace("AR6 climate diagnostics|Infilled|", ""),
-                from_convention=SupportedNamingConventions.IAMC,
+                from_convention=SupportedNamingConventions.AR6_WG3,
                 to_convention=SupportedNamingConventions.GCAGES,
             ),
             "unit": lambda x: strip_pint_incompatible_characters_from_unit_string(
