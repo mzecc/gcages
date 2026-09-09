@@ -46,8 +46,6 @@ class SupportedNamingConventions(StrEnum):
     The naming convention used in the IPCC AR6 WG3 scenario database
 
     See https://data.ene.iiasa.ac.at/ar6.
-
-    This is not the Integrated Assessment Modelling Consortium (IAMC) naming convention
     """
 
     IAMC = "iamc"
@@ -55,7 +53,7 @@ class SupportedNamingConventions(StrEnum):
     Deprecated alias for [`AR6_WG3`][(c).]
 
     This name was misleading: the mapping is specific to AR6 WG3
-    and is not the current IAMC naming convention.
+    and is not a generic/standard IAMC naming convention.
     Using it warns and will stop working in a future version of gcages.
     """
 
