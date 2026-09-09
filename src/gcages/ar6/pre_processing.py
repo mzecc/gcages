@@ -562,7 +562,7 @@ class AR6PreProcessor:
             {
                 "variable": partial(
                     convert_variable_name,
-                    from_convention=SupportedNamingConventions.IAMC,
+                    from_convention=SupportedNamingConventions.AR6_WG3,
                     to_convention=SupportedNamingConventions.GCAGES,
                 )
             },

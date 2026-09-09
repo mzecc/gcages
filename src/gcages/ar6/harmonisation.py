@@ -543,7 +543,7 @@ class AR6Harmoniser:
         # Update variable names
         historical_emissions = rename_variables(
             historical_emissions,
-            from_convention=SupportedNamingConventions.IAMC,
+            from_convention=SupportedNamingConventions.AR6_WG3,
             to_convention=SupportedNamingConventions.GCAGES,
             index_level="variable",
             copy=False,
@@ -676,7 +676,7 @@ class AR6Harmoniser:
         aneris_overrides_ar6_df["variable"] = aneris_overrides_ar6_df["variable"].map(
             partial(
                 convert_variable_name,
-                from_convention=SupportedNamingConventions.IAMC,
+                from_convention=SupportedNamingConventions.AR6_WG3,
                 to_convention=SupportedNamingConventions.GCAGES,
             )
         )

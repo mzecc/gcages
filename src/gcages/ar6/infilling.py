@@ -122,7 +122,7 @@ def load_massaged_ar6_infilling_db(filepath: Path, cfcs: bool) -> pd.DataFrame:
             {
                 "variable": partial(
                     convert_variable_name,
-                    from_convention=SupportedNamingConventions.IAMC,
+                    from_convention=SupportedNamingConventions.AR6_WG3,
                     to_convention=SupportedNamingConventions.GCAGES,
                 )
             },

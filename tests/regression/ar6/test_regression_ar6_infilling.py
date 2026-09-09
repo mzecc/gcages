@@ -46,7 +46,7 @@ def strip_off_ar6_harmonised_prefix_and_convert_to_gcages(
         {
             "variable": lambda x: convert_variable_name(
                 x.replace("AR6 climate diagnostics|Harmonized|", ""),
-                from_convention=SupportedNamingConventions.IAMC,
+                from_convention=SupportedNamingConventions.AR6_WG3,
                 to_convention=SupportedNamingConventions.GCAGES,
             )
         },
@@ -77,7 +77,7 @@ def add_ar6_infilled_prefix_and_convert_to_iamc_and_add_harmonised(
                 + convert_variable_name(
                     x,
                     from_convention=SupportedNamingConventions.GCAGES,
-                    to_convention=SupportedNamingConventions.IAMC,
+                    to_convention=SupportedNamingConventions.AR6_WG3,
                 )
             ),
             "unit": lambda x: x.replace("HFC245fa", "HFC245ca").replace(

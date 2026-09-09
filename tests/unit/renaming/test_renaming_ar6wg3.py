@@ -4,22 +4,26 @@ Tests of gcages.renaming for IAMC variables
 
 from __future__ import annotations
 
+import warnings
+
+import pandas as pd
 import pytest
 
 from gcages.renaming import (
     SupportedNamingConventions,
     convert_variable_name,
+    rename_variables,
 )
 
-cases_to_check_iamc = pytest.mark.parametrize(
-    "iamc_variable, gcages_variable",
+cases_to_check_ar6_wg3 = pytest.mark.parametrize(
+    "ar6_wg3_variable, gcages_variable",
     tuple(
         pytest.param(
-            iamc_variable,
+            ar6_wg3_variable,
             gcages_variable,
             id=gcages_variable,
         )
-        for iamc_variable, gcages_variable in (
+        for ar6_wg3_variable, gcages_variable in (
             ("Emissions|BC", "Emissions|BC"),
             ("Emissions|PFC|C2F6", "Emissions|C2F6"),
             ("Emissions|PFC|C3F8", "Emissions|C3F8"),
@@ -81,25 +85,70 @@ cases_to_check_iamc = pytest.mark.parametrize(
 )
 
 
-@cases_to_check_iamc
-def test_convert_iamc_variable_to_gcages(iamc_variable, gcages_variable):
+@cases_to_check_ar6_wg3
+def test_convert_ar6_wg3_variable_to_gcages(ar6_wg3_variable, gcages_variable):
     assert (
         convert_variable_name(
-            iamc_variable,
-            from_convention=SupportedNamingConventions.IAMC,
+            ar6_wg3_variable,
+            from_convention=SupportedNamingConventions.AR6_WG3,
             to_convention=SupportedNamingConventions.GCAGES,
         )
         == gcages_variable
     )
 
 
-@cases_to_check_iamc
-def test_convert_gcages_variable_to_iamc(iamc_variable, gcages_variable):
+@cases_to_check_ar6_wg3
+def test_convert_gcages_variable_to_ar6_wg3(ar6_wg3_variable, gcages_variable):
     assert (
         convert_variable_name(
             gcages_variable,
             from_convention=SupportedNamingConventions.GCAGES,
+            to_convention=SupportedNamingConventions.AR6_WG3,
+        )
+        == ar6_wg3_variable
+    )
+
+
+@cases_to_check_ar6_wg3
+def test_convert_variable_name_iamc_warns_and_works(ar6_wg3_variable, gcages_variable):
+    with pytest.warns(FutureWarning, match="Use 'AR6_WG3' instead"):
+        res = convert_variable_name(
+            ar6_wg3_variable,
+            from_convention=SupportedNamingConventions.IAMC,
+            to_convention=SupportedNamingConventions.GCAGES,
+        )
+
+    assert res == gcages_variable
+
+
+def test_rename_variables_iamc_warns_and_works():
+    start = pd.DataFrame(
+        [[1.0]],
+        columns=[2020],
+        index=pd.MultiIndex.from_tuples(
+            [("Emissions|CF4", "Mt CF4/yr")], names=["variable", "unit"]
+        ),
+    )
+
+    with pytest.warns(FutureWarning, match="Use 'AR6_WG3' instead"):
+        res = rename_variables(
+            start,
+            from_convention=SupportedNamingConventions.GCAGES,
             to_convention=SupportedNamingConventions.IAMC,
         )
-        == iamc_variable
-    )
+
+    assert res.index.get_level_values("variable").tolist() == ["Emissions|PFC|CF4"]
+
+
+@cases_to_check_ar6_wg3
+def test_ar6_wg3_does_not_warn(ar6_wg3_variable, gcages_variable):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+
+        res = convert_variable_name(
+            ar6_wg3_variable,
+            from_convention=SupportedNamingConventions.AR6_WG3,
+            to_convention=SupportedNamingConventions.GCAGES,
+        )
+
+    assert res == gcages_variable

@@ -65,7 +65,7 @@ pandas_openscm.register_pandas_accessors("openscm")
 convert_variable_name(
     "Emissions|CO2|Fossil",
     from_convention=SupportedNamingConventions.GCAGES,
-    to_convention=SupportedNamingConventions.IAMC,
+    to_convention=SupportedNamingConventions.AR6_WG3,
 )
 
 # %% [markdown]
@@ -74,7 +74,8 @@ convert_variable_name(
 #
 # - `gcages`
 # - [OpenSCM-Runner](https://github.com/openscm/openscm-runner)
-# - the IAMC community, e.g. the [IPCC AR6 database](https://data.ene.iiasa.ac.at/ar6)
+# - AR6_WG3
+# - *Soon deprecated*: the IAMC community, e.g. the [IPCC AR6 database](https://data.ene.iiasa.ac.at/ar6)
 # - RCMIP (rcmip.org), as used in e.g. https://rcmip-protocols-au.s3-ap-southeast-2.amazonaws.com/v5.1.0/rcmip-emissions-annual-means-v5-1-0.csv
 # - the infilling database used in AR6 for CFCs
 #   (which is somehow different from all the rest)
@@ -88,35 +89,35 @@ convert_variable_name(
 # %%
 convert_variable_name(
     "Emissions|CO2|Energy and Industrial Processes",
-    from_convention=SupportedNamingConventions.IAMC,
+    from_convention=SupportedNamingConventions.AR6_WG3,
     to_convention=SupportedNamingConventions.GCAGES,
 )
 
 # %%
 convert_variable_name(
     "Emissions|CO2|Energy and Industrial Processes",
-    from_convention=SupportedNamingConventions.IAMC,
+    from_convention=SupportedNamingConventions.AR6_WG3,
     to_convention=SupportedNamingConventions.OPENSCM_RUNNER,
 )
 
 # %%
 convert_variable_name(
     "Emissions|CO2|Energy and Industrial Processes",
-    from_convention=SupportedNamingConventions.IAMC,
+    from_convention=SupportedNamingConventions.AR6_WG3,
     to_convention=SupportedNamingConventions.RCMIP,
 )
 
 # %%
 convert_variable_name(
     "Emissions|CO2|Energy and Industrial Processes",
-    from_convention=SupportedNamingConventions.IAMC,
+    from_convention=SupportedNamingConventions.AR6_WG3,
     to_convention=SupportedNamingConventions.RCMIP3,
 )
 
 # %%
 convert_variable_name(
     "Emissions|CO2|Energy and Industrial Processes",
-    from_convention=SupportedNamingConventions.IAMC,
+    from_convention=SupportedNamingConventions.AR6_WG3,
     to_convention=SupportedNamingConventions.AR6_CFC_INFILLING_DB,
 )
 
@@ -138,7 +139,7 @@ convert_variable_name(
 convert_variable_name(
     "Emissions|CO2|MAGICC AFOLU",
     from_convention=SupportedNamingConventions.OPENSCM_RUNNER,
-    to_convention=SupportedNamingConventions.IAMC,
+    to_convention=SupportedNamingConventions.AR6_WG3,
 )
 
 # %% [markdown]
@@ -195,7 +196,7 @@ start
 rename_variables(
     start,
     from_convention=SupportedNamingConventions.GCAGES,
-    to_convention=SupportedNamingConventions.IAMC,
+    to_convention=SupportedNamingConventions.AR6_WG3,
 )
 
 # %% [markdown]
@@ -205,18 +206,20 @@ rename_variables(
 # to make data manipulation and conversion straightforward and flexible.
 
 # %%
-convert_gcages_variable_to_iamc = partial(
+convert_gcages_variable_to_ar6_wg3 = partial(
     convert_variable_name,
     from_convention=SupportedNamingConventions.GCAGES,
-    to_convention=SupportedNamingConventions.IAMC,
+    to_convention=SupportedNamingConventions.AR6_WG3,
 )
 start.openscm.update_index_levels(
-    {"variable": convert_gcages_variable_to_iamc, "scenario": {"sa": "scenario a"}}
+    {"variable": convert_gcages_variable_to_ar6_wg3, "scenario": {"sa": "scenario a"}}
 )
 
 # %%
 start.pix.assign(
-    variable=start.index.pix.project("variable").map(convert_gcages_variable_to_iamc),
+    variable=start.index.pix.project("variable").map(
+        convert_gcages_variable_to_ar6_wg3
+    ),
     scenario="scenario a",
 )
 
@@ -255,14 +258,14 @@ disp = EMISSIONS_VARIABLES[
 disp
 
 # %% [markdown]
-# ### gcages vs. IAMC
+# ### gcages vs. AR6_WG3
 #
 # The differences here are more substantial,
 # affecting the majority of variables.
-# The IAMC convention is to include groupings within the variable name.
+# The AR6_WG3 convention is to include groupings within the variable name.
 # This is not used by `gcages` because they generally get in the way
 # and there are multiple groupings of interest, so we don't pick one in particular.
-# The IAMC uses groupings like:
+# The AR6_WG3 uses groupings like:
 #
 # - PFCs
 # - HFCs
@@ -273,18 +276,18 @@ disp
 # for clarity of the source of the CO<sub>2</sub>,
 # and clearer names for emissions of sulfates (which are not pure sulfur)
 # and non-methane volatile organic compounds
-# (the non-methane part is dropped in the IAMC convention).
+# (the non-methane part is dropped in the AR6_WG3 convention).
 
 # %%
 disp = EMISSIONS_VARIABLES[
-    EMISSIONS_VARIABLES["gcages"] != EMISSIONS_VARIABLES["iamc"]
-][["gcages", "iamc"]]
+    EMISSIONS_VARIABLES["gcages"] != EMISSIONS_VARIABLES["ar6_wg3"]
+][["gcages", "ar6_wg3"]]
 disp
 
 # %%
 disp_same = EMISSIONS_VARIABLES[
-    EMISSIONS_VARIABLES["gcages"] == EMISSIONS_VARIABLES["iamc"]
-][["gcages", "iamc"]]
+    EMISSIONS_VARIABLES["gcages"] == EMISSIONS_VARIABLES["ar6_wg3"]
+][["gcages", "ar6_wg3"]]
 disp_same
 
 # %% [markdown]
@@ -305,7 +308,7 @@ disp_same
 # for clarity of the source of the CO<sub>2</sub>,
 # and clearer names for emissions of sulfates (which are not pure sulfur)
 # and non-methane volatile organic compounds
-# (the non-methane part is dropped in the IAMC convention).
+# (the non-methane part is dropped in the AR6_WG3 convention).
 
 # %%
 disp = EMISSIONS_VARIABLES[
@@ -346,7 +349,7 @@ disp
 # for clarity of the source of the CO<sub>2</sub>,
 # and clearer names for emissions of sulfates (which are not pure sulfur)
 # and non-methane volatile organic compounds
-# (the non-methane part is dropped in the IAMC convention).
+# (the non-methane part is dropped in the AR6_WG3 convention).
 
 # %%
 disp = EMISSIONS_VARIABLES[
