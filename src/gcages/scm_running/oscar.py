@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pandas as pd
 from attrs import define
@@ -163,9 +163,9 @@ def oscar_results_to_df(
     out = []
     for (model, scenario), label in scen_labels.items():
         for ovar in oscar_variables:
-            df = pd.concat(
-                [hist[ovar].to_pandas(), scens[ovar].sel(scen=label).to_pandas()]
-            ).T.rename_axis("run_id")
+            hist_df = cast(pd.DataFrame, hist[ovar].to_pandas())
+            scen_df = cast(pd.DataFrame, scens[ovar].sel(scen=label).to_pandas())
+            df = pd.concat([hist_df, scen_df]).T.rename_axis("run_id")
             name, unit = output.at[ovar, "gcages"], output.at[ovar, "unit"]
             out.append(
                 pd.concat(
