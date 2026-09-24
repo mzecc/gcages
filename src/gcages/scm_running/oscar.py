@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pandas as pd
-import yaml
 from attrs import define
 from pandas_openscm.unit_conversion import convert_unit
 
@@ -229,6 +228,7 @@ class OSCARSCMRunner:
         """
         import oscar  # type: ignore # noqa: PLC0415
         import xarray as xr  # noqa: PLC0415
+        import yaml  # type: ignore # noqa: PLC0415
 
         oscar_variables = [
             convert_variable_name(v, "gcages", "oscar", OSCAR_OUTPUT_VARIABLES)  # type: ignore[arg-type]
