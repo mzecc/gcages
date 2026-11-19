@@ -25,8 +25,6 @@ from gcages.renaming import (
 if TYPE_CHECKING:
     import xarray as xr
 
-OSCAR_HIST_END_YEAR = 2023
-
 # cmip7_scenariomip name to key in vars_map_iamc-ar6-public.yaml
 CMIP7_TO_OSCAR_REGISTRY_KEY = {
     **{
@@ -47,10 +45,11 @@ CMIP7_TO_OSCAR_REGISTRY_KEY = {
     "Emissions|cC4F8": "Emissions|c-C4F8",
 }
 
-# Not passed to OSCAR (dropped with a warning)
+# Not passed to OSCAR
 NOT_SUPPORTED = {
     # D_Eluc is computed by OSCAR, not a forcing: passing it NaNs the whole ensemble
-    "Emissions|CO2|Biosphere": "land-use CO2 comes from baseline_forcing",
+    # "Emissions|CO2|Biosphere": "land-use CO2 comes from baseline_forcing",
+    # TODO: check, it should be solved with v4-beta3
     "Emissions|Halon1202": "not in OSCAR's registry",
 }
 
@@ -77,10 +76,10 @@ def emissions_to_oscar_csv(
     indf: pd.DataFrame, scen_labels: dict[tuple[str, str], str]
 ) -> pd.DataFrame:
     """
-    Convert gcages emissions (World) to OSCAR's wide IAMC CSV table
+    Convert gcages emissions to OSCAR's wide IAMC CSV table
 
-    OSCAR never reads the `Unit` column,
-    so values are converted to the units its registry expects.
+    OSCAR reads the `Unit` column lables but values must be
+    converted to the units its registry expects.
 
     Parameters
     ----------
@@ -124,6 +123,9 @@ def emissions_to_oscar_csv(
         target_units,
         ur=openscm_units.unit_registry,  # type: ignore[arg-type]
     )
+    # v4_beta3 checks the units spelling
+    unit_spelling = {r[3].replace("-", ""): r[3] for r in registry.values()}
+    emms = update_index_levels_func(emms, {"unit": lambda u: unit_spelling.get(u, u)})
 
     # OSCAR ignores Model and removes all whitespace from Scenario
     emms = update_index_levels_from_other_func(
@@ -159,8 +161,9 @@ def oscar_results_to_df(
     :
         DataFrame needed for OSCAR
     """
-    hist = results.sel(scen="Historical", year=slice(None, OSCAR_HIST_END_YEAR))
-    scens = results.sel(year=slice(OSCAR_HIST_END_YEAR + 1, None))
+    oscar_hist_end = int(results.attrs["historical_end"])
+    hist = results.sel(scen="Historical", year=slice(None, oscar_hist_end))
+    scens = results.sel(year=slice(oscar_hist_end + 1, None))
     output = OSCAR_OUTPUT_VARIABLES.set_index("oscar")
 
     out = []
@@ -179,7 +182,7 @@ def oscar_results_to_df(
 
     res: pd.DataFrame = pd.concat(out)
     res.columns = res.columns.astype(int)
-    res = res.assign(climate_model="OSCARv4-beta2", region="World").set_index(
+    res = res.assign(climate_model="OSCARv4-beta3", region="World").set_index(
         ["climate_model", "region"], append=True
     )
 
@@ -244,7 +247,7 @@ class OSCARSCMRunner:
         scen_labels = {ms: f"gcages{i:05d}" for i, ms in enumerate(model_scenarios)}
 
         settings = {
-            "output_identifier": "gcages",
+            # "output_identifier": "gcages",
             "user_files": {
                 "csv_inputs": {
                     "atmospheric": {
@@ -257,7 +260,7 @@ class OSCARSCMRunner:
             },
             "scientific_setup": {
                 "hist_type": self.hist_type,
-                "connect_method": "raw",  # input is already harmonised
+                # "connect_method": "raw",  # input is already harmonised
                 "baseline_forcing": self.baseline_forcing,
                 "model_region": self.model_region,
                 "projection_end_year": int(max(emissions.columns)),
