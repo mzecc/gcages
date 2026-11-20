@@ -4,7 +4,6 @@ Run OSCAR v4 (customized mode) on gcages emissions, through OSCAR's IAMC CSV inp
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -12,38 +11,197 @@ import pandas as pd
 from attrs import define
 from pandas_openscm.index_manipulation import (
     update_index_levels_from_other_func,
-    update_index_levels_func,
 )
-from pandas_openscm.unit_conversion import convert_unit
 
 from gcages.renaming import (
-    SupportedNamingConventions,
     convert_variable_name,
-    rename_variables,
 )
 
 if TYPE_CHECKING:
     import xarray as xr
 
-# cmip7_scenariomip name to key in vars_map_iamc-ar6-public.yaml
-CMIP7_TO_OSCAR_REGISTRY_KEY = {
-    **{
-        f"Emissions|{s}": f"Emissions|CFC|{s}"
-        for s in ("CFC11", "CFC12", "CFC113", "CFC114", "CFC115")
-    },
-    **{
-        f"Emissions|{s}": f"Emissions|HCFC|{s}"
-        for s in ("HCFC22", "HCFC141b", "HCFC142b")
-    },
-    **{
-        f"Emissions|{s}": f"Emissions|Halon|{s}"
-        for s in ("Halon1211", "Halon1301", "Halon2402")
-    },
-    "Emissions|CF4": "Emissions|PFC|CF4",
-    "Emissions|C8F18": "Emissions|PFC|C8F18",
-    "Emissions|HFC|HFC43-10": "Emissions|HFC|HFC43-10mee",
-    "Emissions|cC4F8": "Emissions|c-C4F8",
-}
+# TODO: This conversion involves different sources and assumptions from me
+# It would be good to double check
+OSCAR_INPUT_VARIABLES = pd.DataFrame(
+    [
+        # gcages variable, gcages unit, OSCAR variable, spc_halo, factor, OSCAR unit
+        (
+            "Emissions|CO2|Fossil",
+            "Mt CO2/yr",
+            "D_Eff",
+            None,
+            12 / 44 / 1000,
+            "PgC yr-1",
+        ),
+        (
+            "Emissions|CO2|Biosphere",
+            "Mt CO2/yr",
+            "D_Eluc",
+            None,
+            12 / 44 / 1000,
+            "PgC yr-1",
+        ),
+        ("Emissions|CH4", "Mt CH4/yr", "D_Eant_CH4", None, 12 / 16, "TgC yr-1"),
+        ("Emissions|N2O", "kt N2O/yr", "D_Eant_N2O", None, 28 / 44 / 1000, "TgN yr-1"),
+        ("Emissions|CO", "Mt CO/yr", "D_Eant_CO", None, 12 / 28, "TgC yr-1"),
+        ("Emissions|NOx", "Mt NO2/yr", "D_Eant_NOx", None, 14 / 46, "TgN yr-1"),
+        ("Emissions|SOx", "Mt SO2/yr", "D_Eant_SO2", None, 32 / 64, "TgS yr-1"),
+        ("Emissions|NH3", "Mt NH3/yr", "D_Eant_NH3", None, 14 / 17, "TgN yr-1"),
+        ("Emissions|BC", "Mt BC/yr", "D_Eant_BC", None, 1.0, "TgC yr-1"),
+        ("Emissions|OC", "Mt OC/yr", "D_Eant_OC", None, 1.0, "TgC yr-1"),
+        ("Emissions|NMVOC", "Mt VOC/yr", "D_Eant_VOC", None, 1.0, "Tg yr-1"),
+        # Halogens: values stay in kt (= Gg, what the model uses);
+        # the SCI-lite library labels them "Tg yr-1" and OSCAR requires that label
+        ("Emissions|C2F6", "kt C2F6/yr", "D_Eant_Xhalo", "C2F6", 1.0, "Tg yr-1"),
+        ("Emissions|C3F8", "kt C3F8/yr", "D_Eant_Xhalo", "C3F8", 1.0, "Tg yr-1"),
+        ("Emissions|C4F10", "kt C4F10/yr", "D_Eant_Xhalo", "C4F10", 1.0, "Tg yr-1"),
+        ("Emissions|C5F12", "kt C5F12/yr", "D_Eant_Xhalo", "C5F12", 1.0, "Tg yr-1"),
+        ("Emissions|C6F14", "kt C6F14/yr", "D_Eant_Xhalo", "C6F14", 1.0, "Tg yr-1"),
+        ("Emissions|C7F16", "kt C7F16/yr", "D_Eant_Xhalo", "C7F16", 1.0, "Tg yr-1"),
+        ("Emissions|C8F18", "kt C8F18/yr", "D_Eant_Xhalo", "C8F18", 1.0, "Tg yr-1"),
+        ("Emissions|CCl4", "kt CCl4/yr", "D_Eant_Xhalo", "CCl4", 1.0, "Tg yr-1"),
+        ("Emissions|CF4", "kt CF4/yr", "D_Eant_Xhalo", "CF4", 1.0, "Tg yr-1"),
+        ("Emissions|CFC11", "kt CFC11/yr", "D_Eant_Xhalo", "CFC-11", 1.0, "Tg yr-1"),
+        ("Emissions|CFC113", "kt CFC113/yr", "D_Eant_Xhalo", "CFC-113", 1.0, "Tg yr-1"),
+        ("Emissions|CFC114", "kt CFC114/yr", "D_Eant_Xhalo", "CFC-114", 1.0, "Tg yr-1"),
+        ("Emissions|CFC115", "kt CFC115/yr", "D_Eant_Xhalo", "CFC-115", 1.0, "Tg yr-1"),
+        ("Emissions|CFC12", "kt CFC12/yr", "D_Eant_Xhalo", "CFC-12", 1.0, "Tg yr-1"),
+        ("Emissions|CH2Cl2", "kt CH2Cl2/yr", "D_Eant_Xhalo", "CH2Cl2", 1.0, "Tg yr-1"),
+        ("Emissions|CH3Br", "kt CH3Br/yr", "D_Eant_Xhalo", "CH3Br", 1.0, "Tg yr-1"),
+        (
+            "Emissions|CH3CCl3",
+            "kt CH3CCl3/yr",
+            "D_Eant_Xhalo",
+            "CH3CCl3",
+            1.0,
+            "Tg yr-1",
+        ),
+        ("Emissions|CH3Cl", "kt CH3Cl/yr", "D_Eant_Xhalo", "CH3Cl", 1.0, "Tg yr-1"),
+        ("Emissions|CHCl3", "kt CHCl3/yr", "D_Eant_Xhalo", "CHCl3", 1.0, "Tg yr-1"),
+        (
+            "Emissions|HCFC141b",
+            "kt HCFC141b/yr",
+            "D_Eant_Xhalo",
+            "HCFC-141b",
+            1.0,
+            "Tg yr-1",
+        ),
+        (
+            "Emissions|HCFC142b",
+            "kt HCFC142b/yr",
+            "D_Eant_Xhalo",
+            "HCFC-142b",
+            1.0,
+            "Tg yr-1",
+        ),
+        ("Emissions|HCFC22", "kt HCFC22/yr", "D_Eant_Xhalo", "HCFC-22", 1.0, "Tg yr-1"),
+        ("Emissions|HFC125", "kt HFC125/yr", "D_Eant_Xhalo", "HFC-125", 1.0, "Tg yr-1"),
+        (
+            "Emissions|HFC134a",
+            "kt HFC134a/yr",
+            "D_Eant_Xhalo",
+            "HFC-134a",
+            1.0,
+            "Tg yr-1",
+        ),
+        (
+            "Emissions|HFC143a",
+            "kt HFC143a/yr",
+            "D_Eant_Xhalo",
+            "HFC-143a",
+            1.0,
+            "Tg yr-1",
+        ),
+        (
+            "Emissions|HFC152a",
+            "kt HFC152a/yr",
+            "D_Eant_Xhalo",
+            "HFC-152a",
+            1.0,
+            "Tg yr-1",
+        ),
+        (
+            "Emissions|HFC227ea",
+            "kt HFC227ea/yr",
+            "D_Eant_Xhalo",
+            "HFC-227ea",
+            1.0,
+            "Tg yr-1",
+        ),
+        ("Emissions|HFC23", "kt HFC23/yr", "D_Eant_Xhalo", "HFC-23", 1.0, "Tg yr-1"),
+        (
+            "Emissions|HFC236fa",
+            "kt HFC236fa/yr",
+            "D_Eant_Xhalo",
+            "HFC-236fa",
+            1.0,
+            "Tg yr-1",
+        ),
+        (
+            "Emissions|HFC245fa",
+            "kt HFC245fa/yr",
+            "D_Eant_Xhalo",
+            "HFC-245fa",
+            1.0,
+            "Tg yr-1",
+        ),
+        ("Emissions|HFC32", "kt HFC32/yr", "D_Eant_Xhalo", "HFC-32", 1.0, "Tg yr-1"),
+        (
+            "Emissions|HFC365mfc",
+            "kt HFC365mfc/yr",
+            "D_Eant_Xhalo",
+            "HFC-365mfc",
+            1.0,
+            "Tg yr-1",
+        ),
+        (
+            "Emissions|HFC4310mee",
+            "kt HFC4310/yr",
+            "D_Eant_Xhalo",
+            "HFC-43-10mee",
+            1.0,
+            "Tg yr-1",
+        ),
+        (
+            "Emissions|Halon1202",
+            "kt Halon1202/yr",
+            "D_Eant_Xhalo",
+            "Halon-1202",
+            1.0,
+            "Tg yr-1",
+        ),
+        (
+            "Emissions|Halon1211",
+            "kt Halon1211/yr",
+            "D_Eant_Xhalo",
+            "Halon-1211",
+            1.0,
+            "Tg yr-1",
+        ),
+        (
+            "Emissions|Halon1301",
+            "kt Halon1301/yr",
+            "D_Eant_Xhalo",
+            "Halon-1301",
+            1.0,
+            "Tg yr-1",
+        ),
+        (
+            "Emissions|Halon2402",
+            "kt Halon2402/yr",
+            "D_Eant_Xhalo",
+            "Halon-2402",
+            1.0,
+            "Tg yr-1",
+        ),
+        ("Emissions|NF3", "kt NF3/yr", "D_Eant_Xhalo", "NF3", 1.0, "Tg yr-1"),
+        ("Emissions|SF6", "kt SF6/yr", "D_Eant_Xhalo", "SF6", 1.0, "Tg yr-1"),
+        ("Emissions|SO2F2", "kt SO2F2/yr", "D_Eant_Xhalo", "SO2F2", 1.0, "Tg yr-1"),
+        ("Emissions|cC4F8", "kt cC4F8/yr", "D_Eant_Xhalo", "c-C4F8", 1.0, "Tg yr-1"),
+    ],
+    columns=["gcages", "gcages_unit", "oscar", "spc_halo", "factor", "oscar_unit"],
+)
+"""gcages to OSCAR SCI-lite input (OSCAR value = gcages value x factor)"""
 
 # Not passed to OSCAR
 NOT_SUPPORTED = {
@@ -69,17 +227,20 @@ OSCAR_OUTPUT_VARIABLES = pd.DataFrame(
     ],
     columns=["oscar", "gcages", "unit"],
 )
-"""OSCAR -> gcages output name"""
+"""OSCAR to gcages output name"""
 
 
-def emissions_to_oscar_csv(
-    indf: pd.DataFrame, scen_labels: dict[tuple[str, str], str]
-) -> pd.DataFrame:
+def prepare_emissions_for_oscar(
+    indf: pd.DataFrame,
+    scen_labels: dict[tuple[str, str], str],
+    preindustrial: xr.Dataset,
+) -> xr.Dataset:
     """
-    Convert gcages emissions to OSCAR's wide IAMC CSV table
+    Convert gcages emissions to OSCAR SCI input.
 
-    OSCAR reads the `Unit` column lables but values must be
-    converted to the units its registry expects.
+    OSCAR takes non-CO2 emissions as the change from pre-industrial
+    (`D_Eant_X = total - Eant_X_pi`), fossil and land-use CO2 as they are.
+    Variables not supplied are taken by OSCAR from its baseline scenario.
 
     Parameters
     ----------
@@ -87,52 +248,57 @@ def emissions_to_oscar_csv(
         Input data
 
     scen_labels
-        Scenario labels
+        OSCAR scenario label for each (model, scenario)
+
+    preindustrial
+        OSCAR library dataset holding the pre-industrial emissions
+        (`forcing_hist.nc` of the SCI-lite library)
 
     Returns
     -------
     :
-        DataFrame needed for OSCAR
+        Dataset to pass as `forcing` to `oscar.run`
     """
-    import openscm_units  # noqa: PLC0415
-    from oscar._io.handlers import load_var_mapping  # type: ignore # noqa: PLC0415
+    import xarray as xr  # noqa: PLC0415
 
-    registry = load_var_mapping("iamc-ar6-public")["anthropogenic_emissions"]
+    table = OSCAR_INPUT_VARIABLES.set_index("gcages")
 
-    emms = indf[~indf.index.isin(list(NOT_SUPPORTED), level="variable")]
-    emms = rename_variables(
-        emms,
-        from_convention=SupportedNamingConventions.GCAGES,
-        to_convention=SupportedNamingConventions.CMIP7_SCENARIOMIP,
-    )
-    emms = update_index_levels_func(
-        emms, {"variable": lambda v: CMIP7_TO_OSCAR_REGISTRY_KEY.get(v, v)}
-    )
+    # Every (variable, unit) must be in the table, otherwise the factor is wrong
+    supplied = pd.MultiIndex.from_frame(indf.index.to_frame()[["variable", "unit"]])
+    known = pd.MultiIndex.from_frame(OSCAR_INPUT_VARIABLES[["gcages", "gcages_unit"]])
+    unexpected = supplied.unique().difference(known)
+    if not unexpected.empty:
+        msg = f"No OSCAR input for (variable, unit): {unexpected.to_list()}"
+        raise KeyError(msg)
 
-    # Registry units spell some species with a hyphen, which pint cannot parse
-    variables = emms.index.droplevel("unit")
-    target_units = pd.Series(
-        [
-            registry[v][3].replace("-", "")
-            for v in variables.get_level_values("variable")
-        ],
-        index=variables,
-    )
-    emms = convert_unit(
-        emms,
-        target_units,
-        ur=openscm_units.unit_registry,  # type: ignore[arg-type]
-    )
-    # v4_beta3 checks the units spelling
-    unit_spelling = {r[3].replace("-", ""): r[3] for r in registry.values()}
-    emms = update_index_levels_func(emms, {"unit": lambda u: unit_spelling.get(u, u)})
-
-    # OSCAR ignores Model and removes all whitespace from Scenario
+    emms = indf.mul(table["factor"], axis=0, level="variable")
     emms = update_index_levels_from_other_func(
-        emms, {"scenario": (("model", "scenario"), scen_labels)}
+        emms,
+        {
+            "scen": (("model", "scenario"), scen_labels),
+            "oscar": ("variable", table["oscar"].to_dict()),
+            "spc_halo": ("variable", table["spc_halo"].to_dict()),
+        },
     )
+    emms.columns = emms.columns.astype(int).rename("year")
 
-    return emms.rename_axis(index=str.capitalize).reset_index()
+    pi = preindustrial.reset_coords(drop=True)  # drop OSCAR's scalar `scen` coord
+    units = dict(zip(table["oscar"], table["oscar_unit"]))
+
+    out = {}
+    for oscar_var, df in emms.groupby(level="oscar"):
+        dims = ["spc_halo", "scen"] if oscar_var == "D_Eant_Xhalo" else ["scen"]
+        da = xr.DataArray.from_series(
+            df.droplevel(df.index.names.difference(dims)).stack()
+        )
+        if oscar_var.startswith("D_Eant_"):
+            # e.g. D_Eant_CH4 - Eant_CH4_pi (halogens aligned on spc_halo)
+            da = da - pi[f"{oscar_var[2:]}_pi"]
+        out[oscar_var] = da.transpose(*dims, "year").assign_attrs(
+            units=units[oscar_var]
+        )
+
+    return xr.Dataset(out)
 
 
 def oscar_results_to_df(
@@ -151,10 +317,10 @@ def oscar_results_to_df(
         OSCAR results
 
     scen_labels
-        Scenario labels
+        Scenario labels for each (model, scenario)
 
     oscar_variables
-        Mapping
+        OSCAR variables to convert
 
     Returns
     -------
@@ -168,11 +334,11 @@ def oscar_results_to_df(
 
     out = []
     for (model, scenario), label in scen_labels.items():
-        for ovar in oscar_variables:
-            hist_df = cast(pd.DataFrame, hist[ovar].to_pandas())
-            scen_df = cast(pd.DataFrame, scens[ovar].sel(scen=label).to_pandas())
+        for var in oscar_variables:
+            hist_df = cast(pd.DataFrame, hist[var].to_pandas())
+            scen_df = cast(pd.DataFrame, scens[var].sel(scen=label).to_pandas())
             df = pd.concat([hist_df, scen_df]).T.rename_axis("run_id")
-            name, unit = output.at[ovar, "gcages"], output.at[ovar, "unit"]
+            name, unit = output.at[var, "gcages"], output.at[var, "unit"]
             out.append(
                 pd.concat(
                     {(model, scenario, name, unit): df},
@@ -180,7 +346,7 @@ def oscar_results_to_df(
                 )
             )
 
-    res: pd.DataFrame = pd.concat(out)
+    res = pd.concat(out)
     res.columns = res.columns.astype(int)
     res = res.assign(climate_model="OSCARv4-beta3", region="World").set_index(
         ["climate_model", "region"], append=True
@@ -201,21 +367,21 @@ class OSCARSCMRunner:
     """
     Variables to include in the output
     """
-    hist_type: str = "CMIP7"
-    """
-    Historical emissions
-    """
-    model_region: str = "IAMC_R5"
-    """
-    Model region
-    """
+    # TODO: Double check that's what we want.
     baseline_forcing: str = "scen7-VL"  # every driver we do not supply, incl. land use
     """
-    Baseline forcing
+    OSCAR library scenario that supplies every input
+    we do not provide (incl. `ERF_luc`).
     """
-    keep_workdir: Path | None = None
+
+    output_file: Path | None = None
     """
-    Keep working directory or use temporary
+    NetCDF file to save OSCAR's raw results to (not saved if `None`)
+    """
+
+    overwrite_output: bool = False
+    """
+    Replace `output_file` if it already exists
     """
 
     def __call__(self, emissions: pd.DataFrame) -> pd.DataFrame:
@@ -234,53 +400,35 @@ class OSCARSCMRunner:
         """
         import oscar  # type: ignore # noqa: PLC0415
         import xarray as xr  # noqa: PLC0415
-        import yaml  # type: ignore # noqa: PLC0415
 
         oscar_variables = [
             convert_variable_name(v, "gcages", "oscar", OSCAR_OUTPUT_VARIABLES)  # type: ignore[arg-type]
             for v in self.output_variables
         ]
-        # Build scenario and parameters
+
+        # OSCAR has one scenario dimension but no model.
+        # To not avoid duplication the scenario names
+        # are rewritten as {model} | {scenario}.
         model_scenarios = emissions.index.droplevel(
             emissions.index.names.difference(["model", "scenario"])  # type: ignore # pandas-stubs out of date
         ).unique()
-        scen_labels = {ms: f"gcages{i:05d}" for i, ms in enumerate(model_scenarios)}
+        scen_labels = {(m, s): f"{m} | {s}" for m, s in model_scenarios}
 
-        settings = {
-            # "output_identifier": "gcages",
-            "user_files": {
-                "csv_inputs": {
-                    "atmospheric": {
-                        "file": "emissions.csv",
-                        "format": "iamc-ar6-public",
-                    },
-                    "lulcc": {"file": None},
-                },
-                "compiled_nc": None,
-            },
-            "scientific_setup": {
-                "hist_type": self.hist_type,
-                # "connect_method": "raw",  # input is already harmonised
-                "baseline_forcing": self.baseline_forcing,
-                "model_region": self.model_region,
-                "projection_end_year": int(max(emissions.columns)),
-            },
-            "theme": "custom",
-            "custom_vars": oscar_variables,
-            "plot_user_forcing": False,
-            "plot_outputs": False,
-        }
+        # Pre-industrial emissions, subtracted from the D_Eant inputs
+        library = oscar.download(mode="advanced", option="SCI-lite")
+        preindustrial = xr.load_dataset(library / "forcing_hist.nc")
 
-        with tempfile.TemporaryDirectory() as tmp:
-            project = Path(self.keep_workdir or tmp).resolve()
-            project.mkdir(parents=True, exist_ok=True)
-            emissions_to_oscar_csv(emissions, scen_labels).to_csv(
-                project / "emissions.csv", index=False
-            )
-            (project / "settings_gcages.yaml").write_text(yaml.safe_dump(settings))
-            # An absolute project path overrides OSCAR's projects folder
-            oscar.run(mode="customized", project=str(project), experiment="gcages")
-            results = xr.load_dataset(project / "results" / "gcages_results.nc")
+        results = oscar.run(
+            mode="advanced",
+            option="SCI-lite",
+            variables=oscar_variables,
+            forcing=prepare_emissions_for_oscar(emissions, scen_labels, preindustrial),
+            baseline_forcing=self.baseline_forcing,
+            # OSCAR raises if the emissions go beyond its last year (2100)
+            projection_end_year=int(max(emissions.columns)),
+            output=self.output_file,
+            overwrite=self.overwrite_output,
+        )
 
         res = oscar_results_to_df(results, scen_labels, oscar_variables)
         if res.isnull().any().any():
